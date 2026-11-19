@@ -1,4 +1,6 @@
+import com.android.build.api.artifact.SingleArtifact
 import java.util.Properties
+import javax.xml.parsers.DocumentBuilderFactory
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -91,3 +93,28 @@ val verifyApkSize by tasks.registering {
 
 // assembleRelease is registered by AGP after this script runs, hence the lazy match.
 tasks.matching { it.name == "assembleRelease" }.configureEach { finalizedBy(verifyApkSize) }
+
+// 001-AC9: the release manifest asks for exactly CAMERA (USB access to a video-class device), nothing else.
+androidComponents {
+    onVariants(selector().withBuildType("release")) { variant ->
+        val manifest = variant.artifacts.get(SingleArtifact.MERGED_MANIFEST)
+        val verify = tasks.register("verifyReleasePermissions") {
+            inputs.file(manifest)
+            doLast {
+                val doc = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+                    .newDocumentBuilder().parse(manifest.get().asFile)
+                // uses-permission-sdk-23 grants a permission just the same.
+                val found = listOf("uses-permission", "uses-permission-sdk-23").flatMap { tag ->
+                    val nodes = doc.getElementsByTagName(tag)
+                    (0 until nodes.length).map {
+                        (nodes.item(it) as org.w3c.dom.Element).getAttributeNS("http://schemas.android.com/apk/res/android", "name")
+                    }
+                }
+                check(found == listOf("android.permission.CAMERA")) {
+                    "001-AC9: release permissions must be exactly [android.permission.CAMERA], got $found"
+                }
+            }
+        }
+        tasks.named("check") { dependsOn(verify) }
+    }
+}

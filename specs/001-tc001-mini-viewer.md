@@ -37,7 +37,7 @@ A small app with no third-party SDK and no network access. Plug the Mini in, the
 
 ## Acceptance criteria
 
-- [ ] **AC1** Given the app is installed, when the Mini is plugged in and USB access is accepted, then a live thermal image shows within 3 s at the camera's frame rate (25 fps).
+- [ ] **AC1** Given the app is installed, when the Mini is plugged in and the CAMERA and USB access prompts are accepted, then a live thermal image shows within 3 s at the camera's frame rate (25 fps).
 - [ ] **AC2** Displayed temperatures equal `raw/64 - 50` of the frame: unit test against `app/src/debug/assets/replay-mode2.bin`, a byte copy of `../capture/raw-mode2-4x2321.bin` (frame 0 min/max/mean 22.70 / 23.69 / 23.04 °C ± 0.01).
 - [ ] **AC3** The scale bar shows the hot colour at the top and labels high / middle / low matching the current range; with "lock range" on, the labels and colours stop following the scene.
 - [ ] **AC4** Hot and cold markers sit on the 3x3-smoothed extremes and carry their temperature on a dark backdrop; a competing spot less than 0.3 °C warmer (colder) does not move the marker, a clear winner does (unit test).
@@ -45,9 +45,9 @@ A small app with no third-party SDK and no network access. Plug the Mini in, the
 - [ ] **AC6** The photo button writes `Pictures/TC001/TC001_<timestamp>.png` (identical to the screen view) and `TC001_<timestamp>.bin` (18,568 bytes, the raw frame); the PNG shows up in the phone gallery; `scripts/live_view.py --file <bin>` can read the `.bin`.
 - [ ] **AC7** Record / stop writes a playable `Movies/TC001/TC001_<timestamp>.mp4` (H.264, no audio track, ~25 fps, duration matching the recording ± 1 s).
 - [ ] **AC8** Unplugging the Mini while streaming or recording does not crash: the app shows "camera disconnected", a recording in progress is finalised and playable, re-plugging resumes the view.
-- [ ] **AC9** The release manifest declares no `uses-permission` at all and `uses-feature android.hardware.usb.host`; the APK has no network code path (no `INTERNET`).
+- [ ] **AC9** The release manifest declares exactly one `uses-permission`, `android.permission.CAMERA` (Android 9+ grants USB access to a UVC device only to apps holding it; asked at runtime only when the Mini is plugged in), and `uses-feature android.hardware.usb.host`; the APK has no network code path (no `INTERNET`).
 - [ ] **AC10** No runtime dependency besides the Android framework and the Kotlin standard library; release APK under 5 MB.
-- [ ] **AC11** The debug build replays a bundled capture when no camera is present, so AC3-AC7 can be checked on an emulator.
+- [ ] **AC11** The debug build replays a bundled capture until a usable camera is attached (camera errors show their message), so AC3-AC7 can be checked on an emulator.
 
 ## Phases
 
@@ -64,16 +64,16 @@ A small app with no third-party SDK and no network access. Plug the Mini in, the
 - **DoD**: debug APK on emulator `Small_Phone_-_API_36` shows the replayed scene with scale and markers (screenshot); settings survive `am force-stop` + relaunch.
 
 ### Phase 3 — USB camera driver
-- Work: USB device filter `2bdf:0102` (app opens on plug), permission request, UVC probe/commit format 1 / frame 5 (`4x2321`), bulk reads on EP 0x81 with UVC payload-header stripping (FID/EOF framing, short-frame rejection), disconnect handling.
+- Work: USB device filter `2bdf:0102` (app opens on plug), CAMERA runtime permission then USB permission request, UVC probe/commit format 1 / frame 5 (`4x2321`), bulk reads on EP 0x81 with UVC payload-header stripping (FID/EOF framing, short-frame rejection), disconnect handling.
 - **Covers**: AC1, AC8 (view part)
 - **Data model impact**: none
-- **DoD**: on the owner's phone with the Mini plugged in: live image, ~25 fps counter in debug overlay, unplug/replug without crash (owner-run check; emulator cannot reach the USB camera).
+- **DoD**: with the Mini plugged in (emulator with USB passthrough, see `../NOTES.md` §10, or the owner's phone): live image, ~25 fps counter in debug overlay, unplug/replug without crash (physical unplug, owner-run).
 
 ### Phase 4 — Photo and video capture
 - Work: photo (PNG + `.bin`) and video (MediaCodec H.264 + MediaMuxer) through MediaStore, no storage permission; recording finalised on stop, pause or unplug.
 - **Covers**: AC6, AC7, AC8 (recording part), AC9
 - **Data model impact**: none
-- **DoD**: on emulator with replay: photo PNG + `.bin` present in `Pictures/TC001`, `.bin` read by `live_view.py --file`; MP4 in `Movies/TC001` probed by `ffprobe` (h264, no audio, ~25 fps); release manifest has zero `uses-permission`.
+- **DoD**: on emulator with replay: photo PNG + `.bin` present in `Pictures/TC001`, `.bin` read by `live_view.py --file`; MP4 in `Movies/TC001` probed by `ffprobe` (h264, no audio, ~25 fps); release manifest's only `uses-permission` is `android.permission.CAMERA`.
 
 ## Data model impact (summary)
 
@@ -91,3 +91,4 @@ None. Files only (MediaStore), settings in `SharedPreferences`.
 - Spot hysteresis 0.3 °C, label EMA alpha 0.3 — same values as the Linux viewer, tuned on live captures.
 - Release signed with a local key in the repo-ignored `keys/` folder; sideload only.
 - Code lives in `topdon/tc001-app/`, local git repo, no remote.
+- One permission, `android.permission.CAMERA`: Android 9+ (targetSdk >= 28) refuses USB access to UVC devices without it (`UsbUserPermissionManager: Camera permission required for USB video class devices`); targetSdk 27 was rejected (compatibility mode, install warning).

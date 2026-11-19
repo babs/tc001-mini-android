@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- TC001 Mini, 2bdf:0102 -->
+    <usb-device vendor-id="11231" product-id="258" />
+</resources>
