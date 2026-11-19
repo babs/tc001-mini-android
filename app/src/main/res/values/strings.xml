@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TC001</string>
+    <string name="plug_in">Plug in the TC001 Mini</string>
+    <string name="ironbow">Ironbow</string>
+    <string name="white_hot">White hot</string>
+    <string name="black_hot">Black hot</string>
+    <string name="range_auto">Auto range</string>
+    <string name="range_locked">Range locked</string>
+    <string name="rotation">Rotate %1$d°</string>
+    <string name="mirror_on">Mirrored</string>
+    <string name="mirror_off">Mirror off</string>
+    <string name="smoothing">Smoothing</string>
+</resources>

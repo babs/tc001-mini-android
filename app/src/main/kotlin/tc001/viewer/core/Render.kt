@@ -2,14 +2,8 @@ package tc001.viewer.core
 
 import kotlin.math.abs
 
-data class Range(val lo: Float, val hi: Float)
-
-/** Colour range: [locked], else the scene min/max; never narrower than 0.1 C (flat scene). */
-fun range(t: FloatArray, locked: Range? = null): Range {
-    val lo = locked?.lo ?: t.min()
-    val hi = locked?.hi ?: t.max()
-    return Range(lo, maxOf(hi, lo + 0.1f))
-}
+/** [hi] raised so that [lo]..hi is never narrower than 0.1 C (flat scene). */
+fun spanHi(lo: Float, hi: Float) = maxOf(hi, lo + 0.1f)
 
 /** Scale-bar column of [height] pixels, hot (top of the LUT) at index 0. */
 fun scaleBar(palette: Palette, height: Int) =
@@ -130,10 +124,10 @@ class Renderer(val scale: Int, private val rows: Int = SIZE, private val cols: I
         return out
     }
 
-    /** Renders celsius plane [t] into [pixels] and returns it. */
-    fun render(t: FloatArray, range: Range, palette: Palette, strength: Float): IntArray {
-        val span = range.hi - range.lo
-        for (i in norm.indices) norm[i] = ((t[i] - range.lo) / span).coerceIn(0f, 1f)
+    /** Renders celsius plane [t] in colour range [lo]..[hi] into [pixels] and returns it. */
+    fun render(t: FloatArray, lo: Float, hi: Float, palette: Palette, strength: Float): IntArray {
+        val span = hi - lo
+        for (i in norm.indices) norm[i] = ((t[i] - lo) / span).coerceIn(0f, 1f)
         upscale(norm, strength)
         val lut = palette.lut
         for (i in pixels.indices) pixels[i] = lut[(plane[i] * 255f).toInt()]

@@ -13,7 +13,7 @@ class RenderTest {
     private val frame0 = parse(capture)!!
 
     private fun image(strength: Float) =
-        Renderer(6).render(frame0, range(frame0), Palette.IRONBOW, strength).copyOf()
+        Renderer(6).render(frame0, frame0.min(), frame0.max(), Palette.IRONBOW, strength).copyOf()
 
     private fun channelDiff(a: IntArray, b: IntArray): Long {
         var sum = 0L
@@ -69,24 +69,7 @@ class RenderTest {
     }
 
     @Test
-    fun flatSceneDoesNotDivideByZero() {
-        val flat = FloatArray(SIZE * SIZE) { 25f }
-        val rng = range(flat)
-        assertTrue(rng.hi - rng.lo >= 0.1f)
-        val px = Renderer(1).render(flat, rng, Palette.IRONBOW, 0.5f)
-        assertTrue(px.all { it == Palette.IRONBOW.lut[0] })
-    }
-
-    @Test
-    fun lockedRangeIsKept() {
-        val locked = Range(20f, 30f)
-        assertEquals(locked, range(frame0, locked))
-        val hot = FloatArray(SIZE * SIZE) { 40f }
-        assertTrue(Renderer(1).render(hot, locked, Palette.IRONBOW, 0f).all { it == Palette.IRONBOW.lut[255] })
-    }
-
-    @Test
-    fun scaleBarIsHotAtTheTop() {
+    fun scaleBarIsHotAtTheTop() { // 001-AC3
         for (p in Palette.entries) {
             val bar = scaleBar(p, 576)
             assertEquals(p.lut[255], bar[0])
@@ -111,8 +94,7 @@ class RenderTest {
     fun outOfRangeStrengthIsClamped() { // 001-AC5
         // s outside [0, 1] must not extrapolate past the LUT ends.
         val field = FloatArray(SIZE * SIZE) { 30f }.also { it[48 * SIZE + 48] = 20f }
-        val rng = range(field)
-        fun img(s: Float) = Renderer(6).render(field, rng, Palette.IRONBOW, s).copyOf()
+        fun img(s: Float) = Renderer(6).render(field, 20f, 30f, Palette.IRONBOW, s).copyOf()
         assertArrayEquals(img(1f), img(2f))
         assertArrayEquals(img(0f), img(-1f))
         assertArrayEquals(img(0f), img(Float.NaN))
@@ -128,13 +110,13 @@ class RenderTest {
     fun anyPlaneOrRangeStaysInsideTheLut() {
         val lut = Palette.IRONBOW.lut
         val far = FloatArray(SIZE * SIZE) { if (it % 2 == 0) 1e30f else -1e30f }
-        val ends = Renderer(2).render(far, Range(20f, 30f), Palette.IRONBOW, 0f)
+        val ends = Renderer(2).render(far, 20f, 30f, Palette.IRONBOW, 0f)
         assertTrue("far outside a locked range: LUT ends", ends.all { it == lut[0] || it == lut[255] })
         val nan = FloatArray(SIZE * SIZE) { Float.NaN }
         val colours = lut.toSet()
-        for ((t, rng) in listOf(far to Range(20f, 30f), nan to Range(20f, 30f), frame0 to Range(25f, 25f))) {
+        for ((t, lo, hi) in listOf(Triple(far, 20f, 30f), Triple(nan, 20f, 30f), Triple(frame0, 25f, 25f))) {
             for (s in floatArrayOf(0f, 0.5f, 1f)) {
-                assertTrue(Renderer(2).render(t, rng, Palette.IRONBOW, s).all { it in colours })
+                assertTrue(Renderer(2).render(t, lo, hi, Palette.IRONBOW, s).all { it in colours })
             }
         }
     }

@@ -7,7 +7,6 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import tc001.viewer.core.Extremes
 import tc001.viewer.core.Palette
-import tc001.viewer.core.Range
 import tc001.viewer.core.Renderer
 import tc001.viewer.core.SIZE
 import tc001.viewer.core.formatCelsius
@@ -16,7 +15,7 @@ import tc001.viewer.core.orientedIndex
 import tc001.viewer.core.scaleBar
 
 /**
- * Composes the whole view (thermal image, crosshair, spot markers, scale-bar panel) into one Bitmap,
+ * Composes the whole view (thermal image, crosshair, spot markers, centre readout, scale-bar panel) into one Bitmap,
  * so the screen, the photo PNG and the video frames are the same pixels.
  */
 class FrameComposer(private val scale: Int) {
@@ -45,25 +44,30 @@ class FrameComposer(private val scale: Int) {
     private val panel = Paint().apply { color = Color.rgb(24, 24, 24) }
 
     /**
-     * Draws raw celsius plane [t] turned clockwise by [quarterTurns] x 90 degrees and [mirror]ed, with
-     * the [spots] tracked on that raw plane, and returns [bitmap], reused across calls.
+     * Draws celsius plane [t] in colour range [lo]..[hi], turned clockwise by [quarterTurns] x 90 degrees
+     * and [mirror]ed, with the [spots] tracked on the raw plane and its [centre] temperature, and returns
+     * [bitmap], reused across calls.
      */
     fun compose(
         t: FloatArray,
-        range: Range,
+        lo: Float,
+        hi: Float,
         palette: Palette,
         strength: Float,
         spots: Extremes?,
+        centre: Float,
         quarterTurns: Int,
         mirror: Boolean,
     ): Bitmap {
         orient(t, quarterTurns, mirror, oriented)
-        bitmap.setPixels(renderer.render(oriented, range, palette, strength), 0, side, 0, 0, side, side)
+        bitmap.setPixels(renderer.render(oriented, lo, hi, palette, strength), 0, side, 0, 0, side, side)
 
         val c = side / 2f
         stroke.color = Color.WHITE
         canvas.drawLine(c - half, c, c + half, c, stroke)
         canvas.drawLine(c, c - half, c, c + half, stroke)
+        // Lower-right of the crosshair, clear of both arms and of the measured 2x2 block; before the markers so they stay on top.
+        badge(formatCelsius(centre, label), c + scale + 2, c + scale + 2, Color.WHITE)
         if (spots?.ready == true) {
             marker(orientedIndex(spots.hotRow, spots.hotCol, quarterTurns, mirror), spots.hotCelsius, Color.WHITE)
             marker(orientedIndex(spots.coldRow, spots.coldCol, quarterTurns, mirror), spots.coldCelsius, COLD)
@@ -78,9 +82,10 @@ class FrameComposer(private val scale: Int) {
         bitmap.setPixels(bar, 0, barWidth, barX, 0, barWidth, side)
         text.color = Color.WHITE
         val x = barX + barWidth + scale.toFloat()
-        drawCelsius(range.hi, x, -fm.ascent)
-        drawCelsius((range.lo + range.hi) / 2, x, (side - fm.ascent - fm.descent) / 2)
-        drawCelsius(range.lo, x, side - fm.descent)
+        drawCelsius(hi, x, -fm.ascent)
+        canvas.drawText(UNIT, x, fm.descent - 2 * fm.ascent, text)
+        drawCelsius((lo + hi) / 2, x, (side - fm.ascent - fm.descent) / 2)
+        drawCelsius(lo, x, side - fm.descent)
         return bitmap
     }
 
@@ -94,17 +99,25 @@ class FrameComposer(private val scale: Int) {
         canvas.drawRect(x - half, y - half, x + half, y + half, stroke)
 
         val n = formatCelsius(celsius, label)
-        val pad = scale / 2f
-        val w = text.measureText(label, 0, n) + 2 * pad
+        val w = badgeWidth(n)
+        badge(n, if (x + half + 2 + w <= side) x + half + 2 else x - half - 2 - w, y - half, color)
+    }
+
+    private fun badgeWidth(n: Int) = text.measureText(label, 0, n) + scale
+
+    /** First [n] chars of [label] on a dark backdrop at ([left], [top]), clamped inside the image. */
+    private fun badge(n: Int, left: Float, top: Float, color: Int) {
+        val w = badgeWidth(n)
         val h = fm.descent - fm.ascent
-        val left = if (x + half + 2 + w <= side) x + half + 2 else x - half - 2 - w
-        val top = (y - half).coerceIn(0f, side - h)
-        canvas.drawRect(left, top, left + w, top + h, backdrop)
+        val l = left.coerceIn(0f, side - w)
+        val t = top.coerceIn(0f, side - h)
+        canvas.drawRect(l, t, l + w, t + h, backdrop)
         text.color = color
-        canvas.drawText(label, 0, n, left + pad, top - fm.ascent, text)
+        canvas.drawText(label, 0, n, l + scale / 2f, t - fm.ascent, text)
     }
 
     private companion object {
         val COLD = Color.rgb(0, 200, 255)
+        const val UNIT = "°C"
     }
 }
