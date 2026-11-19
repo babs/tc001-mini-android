@@ -8,6 +8,7 @@
     <string name="disconnected">Camera disconnected</string>
     <string name="camera_off">Camera permission is off for TC001. Allow it in the app settings.</string>
     <string name="no_frames">No image from the camera</string>
+    <string name="reconnecting">Waiting for the camera…</string>
     <string name="open_failed">Cannot open the camera</string>
     <string name="probe_rejected">The camera refused the temperature mode</string>
     <string name="fps">%1$.1f fps, rejected: %2$d</string>

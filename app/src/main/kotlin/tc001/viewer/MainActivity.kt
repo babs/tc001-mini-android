@@ -30,6 +30,7 @@ import tc001.viewer.core.Access
 import tc001.viewer.core.FrameProcessor
 import tc001.viewer.core.Palette
 import tc001.viewer.core.Readouts
+import tc001.viewer.core.Reconnect
 import tc001.viewer.core.Settings
 import tc001.viewer.core.captureName
 import tc001.viewer.core.nextAccess
@@ -49,7 +50,7 @@ class MainActivity : Activity() {
     private var usbPending = false
     private var cameraPending = false
     private var cameraDenied = false
-    private var cameraName: String? = null // the camera connect() last saw, so an unplug at any stage reads as one
+    private var cameraName: String? = null // the camera open() last saw, so an unplug at any stage reads as one
     private lateinit var usb: UsbManager
     private lateinit var prefs: SharedPreferences
     private lateinit var live: LiveView
@@ -78,6 +79,8 @@ class MainActivity : Activity() {
     private var shownFrames = 0
     private var shownAt = 0L
     private val fpsTick = Runnable { showFps() }
+    private val reconnect = Reconnect() // UI thread
+    private val retry = Runnable { if (started) open() }
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -206,8 +209,14 @@ class MainActivity : Activity() {
         if (started) connect()
     }
 
-    /** The camera when attached and permitted, else the build's fallback; asks for access once if needed. */
+    /** A fresh start (tap, onStart, plug, access granted): a full reconnect budget, then [open]. */
     private fun connect() {
+        reconnect.reset()
+        open()
+    }
+
+    /** The camera when attached and permitted, else the build's fallback; asks for access once if needed. */
+    private fun open() {
         val device = camera()
         cameraName = device?.deviceName
         if (device == null) return use(fallbackSource(), R.string.plug_in)
@@ -233,10 +242,21 @@ class MainActivity : Activity() {
             Access.WAIT -> use(fallbackSource(), R.string.allow_access)
             Access.CONNECT -> if ((source as? UsbSource)?.device != device) {
                 lateinit var camera: UsbSource
-                camera = UsbSource(usb, device) { error -> runOnUiThread { if (source === camera) use(null, error) } }
+                camera = UsbSource(usb, device) { error, delivered -> runOnUiThread { if (source === camera) failed(error, delivered) } }
                 use(camera, R.string.plug_in)
             }
         }
+    }
+
+    /** Reconnects after a stream error while the camera is attached and permitted, else shows [error]. */
+    private fun failed(error: Int, delivered: Int) {
+        val device = camera()
+        // Fast-failing reads also report "disconnected": a real unplug is caught by `gone` and the DETACHED receiver.
+        val retryable = error != R.string.usb_denied
+        val delay = reconnect.next(device == null, device != null && usb.hasPermission(device), retryable, delivered) ?: return use(null, error)
+        Log.i(UsbSource.TAG, "reconnect ${reconnect.attempts}/${Reconnect.DELAYS_MS.size} after ${resources.getResourceEntryName(error)}")
+        use(null, R.string.reconnecting)
+        message.postDelayed(retry, delay)
     }
 
     private fun camera() =
@@ -244,6 +264,8 @@ class MainActivity : Activity() {
 
     /** Switches to [new]; without one the view is hidden behind [text]. */
     private fun use(new: FrameSource?, text: Int) {
+        // Every switch, unplug and onStop passes here: no reconnect fires on a stopped or replaced source.
+        message.removeCallbacks(retry)
         source?.stop()
         // The old source thread is gone: the recording holds only its frames, finalised before the next source draws.
         stopRecording()

@@ -19,12 +19,13 @@ import tc001.viewer.core.readSize
 /**
  * The TC001 Mini over USB: negotiates mode 2 on the streaming interface, then reads its bulk endpoint.
  * The source thread owns the connection from open to close. On a failure it calls [onError] (source
- * thread, string resource of the message) unless [stop] was called.
+ * thread, string resource of the message, frames delivered) unless [stop] was called.
  */
-class UsbSource(private val usb: UsbManager, val device: UsbDevice, private val onError: (Int) -> Unit) : FrameSource {
+class UsbSource(private val usb: UsbManager, val device: UsbDevice, private val onError: (Int, Int) -> Unit) : FrameSource {
     private val assembler = UvcAssembler()
     private var thread: Thread? = null
     private val lock = Any()
+    private var frames = 0 // this session's, written before the thread starts then by it only
 
     // Cleared under [lock] by stop(), so an error checked under it cannot be reported once stop() has begun.
     @Volatile
@@ -36,9 +37,10 @@ class UsbSource(private val usb: UsbManager, val device: UsbDevice, private val 
     override fun start(consumer: (ByteArray) -> Unit) {
         check(thread == null) { "already started" }
         running = true
+        frames = 0
         thread = Thread({
             val error = stream(consumer)
-            if (error != null) synchronized(lock) { if (running) onError(error) }
+            if (error != null) synchronized(lock) { if (running) onError(error, frames) }
         }, "usb").apply { start() }
     }
 
@@ -105,7 +107,6 @@ class UsbSource(private val usb: UsbManager, val device: UsbDevice, private val 
     private fun read(connection: UsbDeviceConnection, endpoint: UsbEndpoint, buffer: ByteArray, consumer: (ByteArray) -> Unit): Int? {
         val t0 = SystemClock.uptimeMillis()
         val watch = ReadWatch(READ_TIMEOUT_MS, t0)
-        var frames = 0
         var reported = 0
         var nextReport = t0 + REPORT_MS
         // ponytail: synchronous reads, 464 KB/s fits in the camera's frame buffer between calls; UsbRequest queue if frames drop.
