@@ -69,15 +69,28 @@ class RenderTest {
     }
 
     @Test
-    fun scaleBarIsHotAtTheTop() { // 001-AC3
+    fun scaleBarIsColdOnTheLeftHotOnTheRight() { // 002-AC1
         for (p in Palette.entries) {
-            val bar = scaleBar(p, 576)
-            assertEquals(p.lut[255], bar[0])
-            assertEquals(p.lut[0], bar.last())
+            val bar = scaleBar(p, BAR_WIDTH)
+            assertEquals("$p", p.lut[0], bar[0])
+            assertEquals("$p", p.lut[255], bar.last())
+            val index = bar.map { p.lut.indexOf(it) }
+            assertTrue("$p: LUT index never goes back", index.zipWithNext().all { (a, b) -> a <= b })
+            assertEquals("$p: the whole LUT is shown", 256, index.distinct().size)
         }
         val luma = { c: Int -> ((c shr 16) and 0xff) + ((c shr 8) and 0xff) + (c and 0xff) }
-        val bar = scaleBar(Palette.IRONBOW, 576)
-        assertTrue(luma(bar[0]) > luma(bar.last()))
+        val bar = scaleBar(Palette.IRONBOW, BAR_WIDTH)
+        assertTrue(luma(bar[0]) < luma(bar[bar.size / 2]) && luma(bar[bar.size / 2]) < luma(bar.last()))
+    }
+
+    @Test
+    fun pictureIs768By896ForTheEncoder() { // 002-AC1, 002-AC6
+        assertEquals(768, PICTURE_WIDTH)
+        assertEquals(896, PICTURE_HEIGHT)
+        assertEquals("the thermal image is square, full width", PICTURE_WIDTH, Renderer(SCALE).height)
+        assertEquals(PICTURE_WIDTH, Renderer(SCALE).width)
+        assertEquals(0, PICTURE_WIDTH % 16)
+        assertEquals(0, PICTURE_HEIGHT % 16)
     }
 
     @Test

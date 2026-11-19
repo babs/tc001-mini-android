@@ -121,6 +121,43 @@ class PipelineTest {
     }
 
     @Test
+    fun readoutsOnTheBundledCapture() { // 002-AC3
+        val p = FrameProcessor()
+        assertTrue(p.process(frame0, 0.5f))
+        val r = Readouts().apply { fill(p) }
+        val raw = parse(frame0)!!
+        val i = (SIZE / 2 - 1) * SIZE + SIZE / 2 - 1
+        assertEquals("Center: raw 2x2 mean", (raw[i] + raw[i + 1] + raw[i + SIZE] + raw[i + SIZE + 1]) / 4, r.centre, 0f)
+        val smooth = box3(raw)
+        assertEquals("Max: hot marker value", smooth.max(), r.max, 0f)
+        assertEquals("Min: cold marker value", smooth.min(), r.min, 0f)
+        assertTrue("markers are smoothed, not the raw extremes", r.max < raw.max() && r.min > raw.min())
+        assertEquals("labels: the colour range", raw.min(), r.lo, 0f)
+        assertEquals(raw.max(), r.hi, 0f)
+        assertEquals((raw.min() + raw.max()) / 2, r.mid, 0f)
+    }
+
+    @Test
+    fun lockedReadoutLabelsStayWhileMaxFollows() { // 002-AC2, 002-AC3
+        val p = FrameProcessor()
+        val r = Readouts()
+        p.process(frame0, 0f)
+        r.fill(p)
+        val labels = Triple(r.lo, r.mid, r.hi)
+        val max = r.max
+        p.locked = true
+        p.process(warmer(640), 0f)
+        r.fill(p)
+        assertEquals("scale labels frozen", labels, Triple(r.lo, r.mid, r.hi))
+        assertTrue("Max still follows the hot marker", r.max > max + 5)
+        assertEquals(p.spots.hotCelsius, r.max, 0f)
+        p.locked = false
+        p.process(warmer(640), 0f)
+        r.fill(p)
+        assertNotEquals("unlocked: labels follow", labels, Triple(r.lo, r.mid, r.hi))
+    }
+
+    @Test
     fun junkFrameLeavesTheStateUntouched() {
         val p = FrameProcessor()
         p.process(frame0, 0.5f)

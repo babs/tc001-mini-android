@@ -46,3 +46,33 @@ class FrameProcessor {
         return true
     }
 }
+
+/** The numbers shown for a frame (readout line, scale labels): one holder refilled in place, no per-frame allocation. */
+class Readouts {
+    /** Raw 2x2 centre mean. */
+    var centre = 0f
+        private set
+
+    /** Hot / cold marker values, so the readout matches the markers on the image. */
+    var max = 0f
+        private set
+    var min = 0f
+        private set
+
+    /** Scale-bar labels: the colour range, frozen with it under lock range. */
+    var lo = 0f
+        private set
+    var mid = 0f
+        private set
+    var hi = 0f
+        private set
+
+    fun fill(p: FrameProcessor) {
+        centre = p.centre
+        max = p.spots.hotCelsius
+        min = p.spots.coldCelsius
+        lo = p.lo
+        mid = (p.lo + p.hi) / 2
+        hi = p.hi
+    }
+}

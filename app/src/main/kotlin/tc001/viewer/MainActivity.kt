@@ -29,6 +29,7 @@ import kotlin.math.roundToInt
 import tc001.viewer.core.Access
 import tc001.viewer.core.FrameProcessor
 import tc001.viewer.core.Palette
+import tc001.viewer.core.Readouts
 import tc001.viewer.core.Settings
 import tc001.viewer.core.captureName
 import tc001.viewer.core.nextAccess
@@ -36,7 +37,8 @@ import tc001.viewer.core.rawSnapshot
 
 class MainActivity : Activity() {
     private val processor = FrameProcessor()
-    private val composer = FrameComposer(8) // 864 x 768: both multiples of 16 for the H.264 encoder
+    private val composer = FrameComposer()
+    private val readouts = Readouts() // source thread only
 
     // Replaced whole on the UI thread, read once per frame on the source thread: a consistent snapshot.
     @Volatile
@@ -282,7 +284,8 @@ class MainActivity : Activity() {
         val s = settings
         if (!processor.process(frame, s.smoothing)) return
         val p = processor
-        val view = composer.compose(p.shown, p.lo, p.hi, s.palette, s.smoothing, p.spots, p.centre, s.quarterTurns, s.mirror)
+        readouts.fill(p)
+        val view = composer.compose(p.shown, readouts, s.palette, s.smoothing, p.spots, s.quarterTurns, s.mirror)
         live.show(view)
         recorder?.draw(view)
         if (photoRequested) {

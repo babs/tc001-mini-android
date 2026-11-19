@@ -5,9 +5,21 @@ import kotlin.math.abs
 /** [hi] raised so that [lo]..hi is never narrower than 0.1 C (flat scene). */
 fun spanHi(lo: Float, hi: Float) = maxOf(hi, lo + 0.1f)
 
-/** Scale-bar column of [height] pixels, hot (top of the LUT) at index 0. */
-fun scaleBar(palette: Palette, height: Int) =
-    IntArray(height) { palette.lut[((1f - it / (height - 1f)) * 255f).toInt()] }
+/** Upscale factor of the composed picture. */
+const val SCALE = 8
+
+/** Composed picture: the SIZE x SIZE image at [SCALE] over a band (scale bar, labels, readout line); both multiples of 16 for the H.264 encoder. */
+const val PICTURE_WIDTH = SIZE * SCALE
+private const val BAND = 16 * SCALE
+const val PICTURE_HEIGHT = PICTURE_WIDTH + BAND
+
+/** Horizontal scale bar under the image: [BAR_MARGIN] from either side. */
+const val BAR_MARGIN = 2 * SCALE
+const val BAR_WIDTH = PICTURE_WIDTH - 2 * BAR_MARGIN
+
+/** Scale-bar row of [width] pixels, cold (bottom of the LUT) at index 0, hot at the end. */
+fun scaleBar(palette: Palette, width: Int) =
+    IntArray(width) { palette.lut[(it / (width - 1f) * 255f).toInt()] }
 
 /**
  * Displayed index of raw pixel ([row], [col]) once the plane is turned clockwise by [quarterTurns] x

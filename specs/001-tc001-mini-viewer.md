@@ -39,7 +39,7 @@ A small app with no third-party SDK and no network access. Plug the Mini in, the
 
 - [x] **AC1** Given the app is installed, when the Mini is plugged in and the CAMERA and USB access prompts are accepted, then a live thermal image shows within 3 s at the camera's frame rate (25 fps).
 - [x] **AC2** Displayed temperatures equal `raw/64 - 50` of the frame: unit test against `app/src/debug/assets/replay-mode2.bin`, a byte copy of `../capture/raw-mode2-4x2321.bin` (frame 0 min/max/mean 22.70 / 23.69 / 23.04 °C ± 0.01).
-- [x] **AC3** The scale bar shows the hot colour at the top and labels high / middle / low matching the current range; with "lock range" on, the labels and colours stop following the scene.
+- [x] **AC3** (layout superseded by 002 AC1/AC2: horizontal bar, cold left, hot right) The scale bar shows the hot colour at the top and labels high / middle / low matching the current range; with "lock range" on, the labels and colours stop following the scene.
 - [x] **AC4** Hot and cold markers sit on the 3x3-smoothed extremes and carry their temperature on a dark backdrop; a competing spot less than 0.3 °C warmer (colder) does not move the marker, a clear winner does (unit test).
 - [x] **AC5** Palette, rotation (0/90/180/270), mirror and smoothing strength change the view immediately and survive an app restart; strength 0 shows real pixels, and the rendered image at 0.5 lies between 0 and 1 (unit test, as in `live_view.py --selftest`).
 - [x] **AC6** The photo button writes `Pictures/TC001/TC001_<timestamp>.png` (identical to the screen view) and `Documents/TC001/TC001_<timestamp>.bin` (18,568 bytes, the raw frame of the same instant); the PNG shows up in the phone gallery; `scripts/live_view.py --file <bin>` can read the `.bin`.
