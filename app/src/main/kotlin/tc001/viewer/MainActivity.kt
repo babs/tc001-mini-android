@@ -12,14 +12,21 @@ import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.Paint
 import android.hardware.usb.UsbManager
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
+import android.util.TypedValue
+import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.WindowInsets
 import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
@@ -29,17 +36,25 @@ import kotlin.math.roundToInt
 import tc001.viewer.core.Access
 import tc001.viewer.core.FrameProcessor
 import tc001.viewer.core.Palette
+import tc001.viewer.core.Readout
 import tc001.viewer.core.Readouts
+import tc001.viewer.core.fitTextSize
 import tc001.viewer.core.Reconnect
 import tc001.viewer.core.Settings
+import tc001.viewer.core.VolumeKey
 import tc001.viewer.core.captureName
 import tc001.viewer.core.nextAccess
+import tc001.viewer.core.photoJson
 import tc001.viewer.core.rawSnapshot
+import tc001.viewer.core.readoutBand
+import tc001.viewer.core.volumeKey
 
 class MainActivity : Activity() {
     private val processor = FrameProcessor()
     private val composer = FrameComposer()
-    private val readouts = Readouts() // source thread only
+    // Filled by the source thread, snapshotted by the UI thread: both under its lock, so the three values come from one frame.
+    private val readouts = Readouts()
+    private var filled = false // guarded by readouts: false until the current source's first frame
 
     // Replaced whole on the UI thread, read once per frame on the source thread: a consistent snapshot.
     @Volatile
@@ -61,6 +76,9 @@ class MainActivity : Activity() {
     private lateinit var photoButton: Button
     private lateinit var recordButton: Button
     private lateinit var recordColors: ColorStateList
+    private lateinit var readoutRow: LinearLayout
+    private lateinit var values: Map<Readout, TextView>
+    private val readoutTick = Runnable { showReadouts() }
 
     // Set on the UI thread, taken by the source thread with the next composed frame.
     @Volatile
@@ -139,7 +157,7 @@ class MainActivity : Activity() {
         rotateButton = findViewById(R.id.rotate)
         rotateButton.setOnClickListener { update(settings.copy(quarterTurns = (settings.quarterTurns + 1) % 4)) }
         photoButton = findViewById(R.id.photo)
-        photoButton.setOnClickListener { photoRequested = true }
+        photoButton.setOnClickListener { requestPhoto() }
         recordButton = findViewById(R.id.record)
         recordColors = recordButton.textColors
         recordButton.setOnClickListener { if (recording == null) startRecording() else stopRecording() }
@@ -160,6 +178,26 @@ class MainActivity : Activity() {
             })
         }
         showSettings()
+
+        readoutRow = findViewById(R.id.readouts)
+        val pair = LinearLayout(this)
+        readoutRow.addView(pair, LinearLayout.LayoutParams(MATCH_PARENT, 0, PAIR_MAX_SP))
+        val min = readoutColumn(Readout.MIN, pair, 1f)
+        val max = readoutColumn(Readout.MAX, pair, 1f)
+        val centre = readoutColumn(Readout.CENTER, readoutRow, CENTRE_MAX_SP)
+        values = mapOf(Readout.MIN to min, Readout.CENTER to centre, Readout.MAX to max)
+        // Rows split the band PAIR : CENTRE; the floor gives the Min/Max row its label and a 56 sp value.
+        val label = lineHeight(LABEL_SP)
+        val bandMin = (label + lineHeight(VALUE_MIN_SP)) * (PAIR_MAX_SP + CENTRE_MAX_SP) / PAIR_MAX_SP
+        readoutRow.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> readoutRow.post(::fitReadouts) }
+        findViewById<View>(R.id.stage).addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
+            val band = readoutBand(right - left, bottom - top, bandMin.toInt())
+            // Posted: a layout change listener runs inside the layout pass.
+            if (readoutRow.layoutParams.height != band) readoutRow.post {
+                readoutRow.layoutParams.height = band
+                readoutRow.requestLayout()
+            }
+        }
 
         // WindowInsets.Type is API 30+; below API 35 the decor already keeps content clear of the bars.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -190,6 +228,24 @@ class MainActivity : Activity() {
         unregisterReceiver(receiver)
         use(null, R.string.plug_in)
         super.onStop()
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent) = volumeKey(keyCode, event) ?: super.onKeyDown(keyCode, event)
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent) = volumeKey(keyCode, event) ?: super.onKeyUp(keyCode, event)
+
+    /** Handled volume key (002-AC5), or null for the system. */
+    private fun volumeKey(keyCode: Int, event: KeyEvent): Boolean? {
+        if (keyCode != KeyEvent.KEYCODE_VOLUME_UP && keyCode != KeyEvent.KEYCODE_VOLUME_DOWN) return null
+        return when (volumeKey(event.action == KeyEvent.ACTION_DOWN, event.repeatCount, source != null)) {
+            VolumeKey.PHOTO -> true.also { requestPhoto() }
+            VolumeKey.CONSUME -> true
+            VolumeKey.PASS -> null
+        }
+    }
+
+    private fun requestPhoto() {
+        photoRequested = true
     }
 
     // Re-plug: the system starts us with USB_DEVICE_ATTACHED once the user accepts, access included.
@@ -270,6 +326,7 @@ class MainActivity : Activity() {
         // The old source thread is gone: the recording holds only its frames, finalised before the next source draws.
         stopRecording()
         photoRequested = false
+        synchronized(readouts) { filled = false }
         source = new
         new?.start(::onFrame)
         photoButton.isEnabled = new != null
@@ -282,6 +339,11 @@ class MainActivity : Activity() {
         // The rate is per source: a stopped source must not leave its last reading on screen.
         fps.removeCallbacks(fpsTick)
         fps.text = null
+        // Cleared, not left at the last source's numbers until the new one's first frame.
+        readoutRow.removeCallbacks(readoutTick)
+        for (v in values.values) v.text = null
+        readoutRow.visibility = if (new != null) View.VISIBLE else View.INVISIBLE
+        if (new != null) readoutRow.post(readoutTick)
         fps.visibility = if (FPS_OVERLAY && new != null) View.VISIBLE else View.GONE
         if (fps.visibility == View.VISIBLE) {
             shownFrames = frames
@@ -300,30 +362,105 @@ class MainActivity : Activity() {
         fps.postDelayed(fpsTick, 1000)
     }
 
+    /** [item]'s label above its value, added to [parent] with [weight]; returns the value view. */
+    private fun readoutColumn(item: Readout, parent: LinearLayout, weight: Float): TextView {
+        val column = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val label = TextView(this).apply {
+            text = item.label
+            setTextColor(item.color)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, LABEL_SP)
+            gravity = Gravity.CENTER
+            includeFontPadding = false
+        }
+        val value = TextView(this).apply {
+            setTextColor(item.color)
+            // The padding keeps a visible gap between neighbouring values.
+            val gap = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 8f, resources.displayMetrics).toInt()
+            setPadding(gap, 0, gap, 0)
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            includeFontPadding = false
+            maxLines = 1
+        }
+        column.addView(label, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        column.addView(value, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+        val horizontal = parent.orientation == LinearLayout.HORIZONTAL
+        parent.addView(column, if (horizontal) LinearLayout.LayoutParams(0, MATCH_PARENT, weight) else LinearLayout.LayoutParams(MATCH_PARENT, 0, weight))
+        return value
+    }
+
+    private fun sp(sp: Float) = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, sp, resources.displayMetrics)
+
+    /** [v]'s text width and line height, in multiples of its text size. */
+    private fun ems(v: TextView): Pair<Float, Float> {
+        val p = v.paint
+        return p.measureText(v.text, 0, v.length()) / p.textSize to p.fontMetrics.run { descent - ascent } / p.textSize
+    }
+
+    /**
+     * Min and Max at one shared size, the largest at which both fit their boxes; Center on its own. A wide value
+     * on a narrow screen goes below the band's 56 sp, down to 32 sp; only a too-short box goes lower.
+     */
+    private fun fitReadouts() {
+        val min = values.getValue(Readout.MIN)
+        val max = values.getValue(Readout.MAX)
+        val centre = values.getValue(Readout.CENTER)
+        // Not laid out yet: the next layout pass fits them.
+        if (min.height == 0 || centre.height == 0) return
+        val (minEm, line) = ems(min)
+        val pair = fitTextSize(maxOf(minEm, ems(max).first), line, innerWidth(min), min.height.toFloat(), sp(VALUE_FIT_SP), sp(PAIR_MAX_SP))
+        min.setTextSize(TypedValue.COMPLEX_UNIT_PX, pair)
+        max.setTextSize(TypedValue.COMPLEX_UNIT_PX, pair)
+        val (centreEm, centreLine) = ems(centre)
+        centre.setTextSize(
+            TypedValue.COMPLEX_UNIT_PX,
+            fitTextSize(centreEm, centreLine, innerWidth(centre), centre.height.toFloat(), sp(VALUE_FIT_SP), sp(CENTRE_MAX_SP)),
+        )
+    }
+
+    private fun innerWidth(v: TextView) = (v.width - v.paddingLeft - v.paddingRight).toFloat()
+
+    /** Pixel height of one line of default-typeface text at [size] sp, without font padding. */
+    private fun lineHeight(size: Float) = Paint().apply { textSize = sp(size) }.getFontMetricsInt(null)
+
+    private fun showReadouts() {
+        val texts = synchronized(readouts) { if (filled) Readout.entries.associateWith { it.text(readouts) } else null }
+        if (texts != null) {
+            for ((item, t) in texts) values.getValue(item).text = t
+            // "-" is narrower than a digit: a same-length value can still be wider, so refit every tick.
+            fitReadouts()
+        }
+        readoutRow.postDelayed(readoutTick, READOUT_PERIOD_MS)
+    }
+
     // Source thread.
     private fun onFrame(frame: ByteArray) {
         frames++
         val s = settings
         if (!processor.process(frame, s.smoothing)) return
         val p = processor
-        readouts.fill(p)
+        synchronized(readouts) {
+            readouts.fill(p)
+            filled = true
+        }
         val view = composer.compose(p.shown, readouts, s.palette, s.smoothing, p.spots, s.quarterTurns, s.mirror)
         live.show(view)
         recorder?.draw(view)
         if (photoRequested) {
             photoRequested = false
-            takePhoto(view, frame)
+            takePhoto(view, frame, s)
         }
     }
 
-    /** Source thread: snapshots [view] and [frame] (both reused by the next frame), saved on a thread of their own. */
-    private fun takePhoto(view: Bitmap, frame: ByteArray) {
-        val name = captureName(System.currentTimeMillis())
+    /** Source thread: snapshots [view], [frame] (both reused by the next frame) and its readouts drawn with [s], saved on a thread of their own. */
+    private fun takePhoto(view: Bitmap, frame: ByteArray, s: Settings) {
+        val now = System.currentTimeMillis()
+        val name = captureName(now)
+        val json = photoJson(readouts, s, now)
         val png = view.copy(Bitmap.Config.ARGB_8888, false)
         val raw = rawSnapshot(frame)
         if (png == null) return runOnUiThread { toast(getString(R.string.photo_failed)) }
         thread(name = "photo") {
-            val saved = contentResolver.savePhoto(name, png, raw)
+            val saved = contentResolver.savePhoto(name, png, raw, json)
             runOnUiThread { toast(if (saved) getString(R.string.photo_saved, name) else getString(R.string.photo_failed)) }
         }
     }
@@ -405,5 +542,11 @@ class MainActivity : Activity() {
     private companion object {
         const val ACTION_PERMISSION = "tc001.viewer.USB_PERMISSION"
         const val REQUEST_CAMERA = 1
+        const val READOUT_PERIOD_MS = 200L // ~5 Hz (002-AC4)
+        const val LABEL_SP = 16f
+        const val VALUE_MIN_SP = 56f
+        const val VALUE_FIT_SP = 32f
+        const val PAIR_MAX_SP = 110f
+        const val CENTRE_MAX_SP = 140f
     }
 }

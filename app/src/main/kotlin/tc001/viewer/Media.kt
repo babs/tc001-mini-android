@@ -8,8 +8,10 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Log
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.OutputStream
+import tc001.viewer.core.writePngWithText
 
 val VIDEOS: Uri = MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
 private val IMAGES: Uri = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
@@ -57,15 +59,17 @@ private fun ContentResolver.write(uri: Uri, write: (OutputStream) -> Unit) =
     (openOutputStream(uri) ?: throw IOException("no stream for $uri")).use(write)
 
 /**
- * Off the source thread: the PNG of the composed [view] and the raw 18,568-byte [frame], published together
- * once both are written; on any failure neither is kept.
+ * Off the source thread: the PNG of the composed [view], carrying [json] as a `tc001` tEXt chunk, and the raw
+ * 18,568-byte [frame], published together once both are written; on any failure neither is kept.
  */
-fun ContentResolver.savePhoto(name: String, view: Bitmap, frame: ByteArray): Boolean {
+fun ContentResolver.savePhoto(name: String, view: Bitmap, frame: ByteArray, json: String): Boolean {
     val uris = ArrayList<Uri>(2)
     return try {
         val png = pending(IMAGES, PHOTO_DIR, "$name.png", "image/png").also(uris::add)
         val raw = pending(FILES, RAW_DIR, "$name.bin", "application/octet-stream").also(uris::add)
-        write(png) { if (!view.compress(Bitmap.CompressFormat.PNG, 100, it)) throw IOException("PNG encoding failed") }
+        val encoded = ByteArrayOutputStream()
+        if (!view.compress(Bitmap.CompressFormat.PNG, 100, encoded)) throw IOException("PNG encoding failed")
+        write(png) { writePngWithText(encoded.toByteArray(), PHOTO_KEYWORD, json, it) }
         write(raw) { it.write(frame) }
         uris.forEach { publish(it) }
         Log.i(UsbSource.TAG, "photo saved: $PHOTO_DIR/$name.png, $RAW_DIR/$name.bin")
@@ -86,5 +90,6 @@ fun ContentResolver.savePhoto(name: String, view: Bitmap, frame: ByteArray): Boo
 }
 
 const val PHOTO_DIR = "Pictures/TC001"
+const val PHOTO_KEYWORD = "tc001"
 const val RAW_DIR = "Documents/TC001"
 const val VIDEO_DIR = "Movies/TC001"

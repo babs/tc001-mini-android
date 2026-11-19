@@ -167,4 +167,53 @@ class PipelineTest {
         assertEquals(range, p.bounds())
         assertEquals(centre, p.centre, 0f)
     }
+
+    @Test
+    fun nativeReadoutsShowThePictureNumbersAndColours() { // 002-AC3, 002-AC4
+        val p = FrameProcessor()
+        p.process(frame0, 0f)
+        val r = Readouts().apply { fill(p) }
+        val buf = CharArray(21)
+        fun picture(v: Float) = String(buf, 0, formatCelsius(v, buf)) // what FrameComposer draws for a marker or badge
+        assertEquals(listOf("Min", "Center", "Max"), Readout.entries.map { it.label })
+        assertEquals(listOf(picture(r.min), picture(r.centre), picture(r.max)), Readout.entries.map { it.text(r) })
+        assertEquals("cold marker / Min", COLD_COLOR, Readout.MIN.color)
+        assertEquals("centre badge / Center", CENTRE_COLOR, Readout.CENTER.color)
+        assertEquals("hot marker / Max", HOT_COLOR, Readout.MAX.color)
+        assertEquals("three distinct colours", 3, setOf(COLD_COLOR, CENTRE_COLOR, HOT_COLOR).size)
+    }
+
+    @Test
+    fun readoutBandTakesWhatTheFullWidthPictureLeaves() { // 002-AC4
+        // 1080 px wide: the picture is 1080 x 1170, the band gets the rest.
+        assertEquals(1800 - 1170, readoutBand(1080, 1800, 200))
+        assertEquals("never below its minimum: the picture shrinks instead", 200, readoutBand(720, 900, 200))
+        assertEquals(200, readoutBand(720, 780 + 200, 200))
+        assertEquals("short stage (landscape): at most half, the picture keeps the rest", 150, readoutBand(1280, 300, 200))
+        assertEquals("stage shorter than the floor", 75, readoutBand(1280, 150, 200))
+    }
+
+    @Test
+    fun readoutTextSizeIsTheLargestThatFitsWithinItsBounds() { // 002-AC4
+        // 5 chars of 0.55 em in a 300 x 200 box, line 1.2 em: width allows 109.1, height 166.7.
+        assertEquals(300f / 2.75f, fitTextSize(2.75f, 1.2f, 300f, 200f, 32f, 140f), 1e-3f)
+        assertEquals("height-bound", 50f / 1.2f, fitTextSize(2.75f, 1.2f, 3000f, 50f, 32f, 140f), 1e-3f)
+        assertEquals("capped", 140f, fitTextSize(1f, 1f, 3000f, 3000f, 32f, 140f), 0f)
+        assertEquals("narrow screen: floor, never below", 32f, fitTextSize(2.75f, 1.2f, 60f, 200f, 32f, 140f), 0f)
+        assertEquals("box below the floor's line height: height wins", 30f / 1.2f, fitTextSize(2.75f, 1.2f, 60f, 30f, 32f, 140f), 1e-3f)
+        assertEquals("empty text: width does not bind", 140f, fitTextSize(0f, 1.2f, 0f, 3000f, 32f, 140f), 0f)
+    }
+
+    @Test
+    fun readoutsRecordWhetherTheRangeWasLocked() { // 002-AC7
+        val p = FrameProcessor()
+        val r = Readouts()
+        p.process(frame0, 0f)
+        r.fill(p)
+        assertFalse(r.locked)
+        p.locked = true
+        p.process(frame0, 0f)
+        r.fill(p)
+        assertTrue(r.locked)
+    }
 }

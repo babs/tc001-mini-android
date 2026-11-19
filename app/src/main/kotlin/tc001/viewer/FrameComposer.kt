@@ -7,7 +7,10 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import tc001.viewer.core.BAR_MARGIN
 import tc001.viewer.core.BAR_WIDTH
+import tc001.viewer.core.CENTRE_COLOR
+import tc001.viewer.core.COLD_COLOR
 import tc001.viewer.core.Extremes
+import tc001.viewer.core.HOT_COLOR
 import tc001.viewer.core.PICTURE_HEIGHT
 import tc001.viewer.core.PICTURE_WIDTH
 import tc001.viewer.core.Palette
@@ -22,7 +25,7 @@ import tc001.viewer.core.scaleBar
 
 /**
  * Composes the whole view (thermal image, crosshair, spot markers, centre badge, then a band with the
- * horizontal scale bar and the readout line) into one Bitmap, so the screen, the photo PNG and the
+ * horizontal scale bar and its labels) into one Bitmap, so the screen, the photo PNG and the
  * video frames are the same pixels.
  */
 class FrameComposer {
@@ -43,7 +46,7 @@ class FrameComposer {
     private val canvas = Canvas(bitmap)
     private val stroke = Paint().apply {
         style = Paint.Style.STROKE
-        strokeWidth = maxOf(1f, scale / 3f)
+        strokeWidth = maxOf(1f, 2 * scale / 3f)
     }
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         typeface = Typeface.MONOSPACE
@@ -53,9 +56,6 @@ class FrameComposer {
     private val labels = Paint(text).apply { color = Color.WHITE }
     private val unitWidth = labels.measureText(UNIT)
     private val labelBaseline = barTop + barHeight - fm.ascent + scale / 4f
-    private val big = Paint(text).apply { textSize = 4f * scale }
-    private val gap = big.measureText(GAP)
-    private val readoutBaseline = bitmap.height - big.fontMetrics.descent - scale
     private val backdrop = Paint().apply { color = 0xC0000000.toInt() }
     private val panel = Paint().apply { color = Color.rgb(24, 24, 24) }
 
@@ -81,11 +81,11 @@ class FrameComposer {
         canvas.drawLine(c - half, c, c + half, c, stroke)
         canvas.drawLine(c, c - half, c, c + half, stroke)
         // Lower-right of the crosshair, clear of both arms and of the measured 2x2 block; before the markers so they stay on top.
-        badge(formatCelsius(r.centre, label), c + scale + 2, c + scale + 2, Color.WHITE)
+        badge(formatCelsius(r.centre, label), c + scale + 2, c + scale + 2, CENTRE_COLOR)
         val tracked = if (spots?.ready == true) spots else null
         if (tracked != null) {
-            marker(orientedIndex(tracked.hotRow, tracked.hotCol, quarterTurns, mirror), r.max, Color.WHITE)
-            marker(orientedIndex(tracked.coldRow, tracked.coldCol, quarterTurns, mirror), r.min, COLD)
+            marker(orientedIndex(tracked.hotRow, tracked.hotCol, quarterTurns, mirror), r.max, HOT_COLOR)
+            marker(orientedIndex(tracked.coldRow, tracked.coldCol, quarterTurns, mirror), r.min, COLD_COLOR)
         }
 
         canvas.drawRect(0f, side.toFloat(), bitmap.width.toFloat(), bitmap.height.toFloat(), panel)
@@ -101,31 +101,12 @@ class FrameComposer {
         scaleLabel(r.hi, right - unitWidth, Paint.Align.RIGHT)
         labels.textAlign = Paint.Align.LEFT
         canvas.drawText(UNIT, right - unitWidth, labelBaseline, labels)
-
-        var x = barLeft.toFloat()
-        if (tracked != null) {
-            big.color = COLD
-            x = readout(MIN, r.min, x)
-            big.color = Color.WHITE
-            x = readout(MAX, r.max, x)
-        }
-        big.color = Color.WHITE
-        readout(CENTER, r.centre, x)
         return bitmap
     }
 
     private fun scaleLabel(celsius: Float, x: Float, align: Paint.Align) {
         labels.textAlign = align
         canvas.drawText(label, 0, formatCelsius(celsius, label), x, labelBaseline, labels)
-    }
-
-    /** Draws [name] then [celsius] on the readout line from [x]; returns where the next item starts, a [GAP] further. */
-    private fun readout(name: String, celsius: Float, x: Float): Float {
-        canvas.drawText(name, x, readoutBaseline, big)
-        val at = x + big.measureText(name)
-        val n = formatCelsius(celsius, label)
-        canvas.drawText(label, 0, n, at, readoutBaseline, big)
-        return at + big.measureText(label, 0, n) + gap
     }
 
     private fun marker(index: Int, celsius: Float, color: Int) {
@@ -136,7 +117,9 @@ class FrameComposer {
 
         val n = formatCelsius(celsius, label)
         val w = badgeWidth(n)
-        badge(n, if (x + half + 2 + w <= side) x + half + 2 else x - half - 2 - w, y - half, color)
+        // Clear of the box's outer stroke edge.
+        val gap = half + stroke.strokeWidth / 2 + 2
+        badge(n, if (x + gap + w <= side) x + gap else x - gap - w, y - half, color)
     }
 
     private fun badgeWidth(n: Int) = text.measureText(label, 0, n) + scale
@@ -153,11 +136,6 @@ class FrameComposer {
     }
 
     private companion object {
-        val COLD = Color.rgb(0, 200, 255)
         const val UNIT = "°C"
-        const val MIN = "Min "
-        const val MAX = "Max "
-        const val CENTER = "Center "
-        const val GAP = "  "
     }
 }

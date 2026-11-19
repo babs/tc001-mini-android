@@ -8,9 +8,9 @@ fun spanHi(lo: Float, hi: Float) = maxOf(hi, lo + 0.1f)
 /** Upscale factor of the composed picture. */
 const val SCALE = 8
 
-/** Composed picture: the SIZE x SIZE image at [SCALE] over a band (scale bar, labels, readout line); both multiples of 16 for the H.264 encoder. */
+/** Composed picture: the SIZE x SIZE image at [SCALE] over a band (scale bar and its labels); both multiples of 16 for the H.264 encoder. */
 const val PICTURE_WIDTH = SIZE * SCALE
-private const val BAND = 16 * SCALE
+private const val BAND = 8 * SCALE
 const val PICTURE_HEIGHT = PICTURE_WIDTH + BAND
 
 /** Horizontal scale bar under the image: [BAR_MARGIN] from either side. */

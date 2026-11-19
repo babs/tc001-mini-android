@@ -84,9 +84,9 @@ class RenderTest {
     }
 
     @Test
-    fun pictureIs768By896ForTheEncoder() { // 002-AC1, 002-AC6
+    fun pictureIs768By832ForTheEncoder() { // 002-AC1, 002-AC6
         assertEquals(768, PICTURE_WIDTH)
-        assertEquals(896, PICTURE_HEIGHT)
+        assertEquals(832, PICTURE_HEIGHT)
         assertEquals("the thermal image is square, full width", PICTURE_WIDTH, Renderer(SCALE).height)
         assertEquals(PICTURE_WIDTH, Renderer(SCALE).width)
         assertEquals(0, PICTURE_WIDTH % 16)

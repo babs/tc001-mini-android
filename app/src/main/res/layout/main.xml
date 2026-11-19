@@ -1,43 +1,64 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
 
-    <FrameLayout
+    <!-- Picture at the top, native readouts under it: the band height is set in code from what the full-width picture leaves. -->
+    <LinearLayout
+        android:id="@+id/stage"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1">
+        android:layout_weight="1"
+        android:orientation="vertical">
 
-        <tc001.viewer.LiveView
-            android:id="@+id/live"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center" />
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            tools:ignore="NestedWeights">
 
-        <TextView
-            android:id="@+id/message"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:gravity="center"
-            android:padding="16dp"
-            android:textColor="#FFFFFF"
-            android:textSize="20sp"
-            android:visibility="gone" />
+            <tc001.viewer.LiveView
+                android:id="@+id/live"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|center_horizontal" />
 
-        <!-- Debug fps overlay: a view, not composed into the bitmap, so photos and videos never carry it. -->
-        <TextView
-            android:id="@+id/fps"
-            android:layout_width="wrap_content"
+            <TextView
+                android:id="@+id/message"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:gravity="center"
+                android:padding="16dp"
+                android:textColor="#FFFFFF"
+                android:textSize="20sp"
+                android:visibility="gone" />
+
+            <!-- Debug fps overlay: a view, not composed into the bitmap, so photos and videos never carry it. -->
+            <TextView
+                android:id="@+id/fps"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|start"
+                android:background="#C0000000"
+                android:padding="4dp"
+                android:textColor="#FFFFFF"
+                android:visibility="gone" />
+        </FrameLayout>
+
+        <!-- Large Min | Max over Center (002-AC4): views, not composed into the bitmap, so photos and videos never carry them. -->
+        <!-- Pinned LTR: Min stays under the cold (left) end of the scale in RTL locales too. -->
+        <LinearLayout
+            android:id="@+id/readouts"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="top|start"
-            android:background="#C0000000"
-            android:padding="4dp"
-            android:textColor="#FFFFFF"
-            android:visibility="gone" />
-    </FrameLayout>
+            android:layoutDirection="ltr"
+            android:orientation="vertical"
+            android:visibility="invisible" />
+    </LinearLayout>
 
     <LinearLayout
         style="?android:attr/buttonBarStyle"

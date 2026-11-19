@@ -25,6 +25,10 @@ class FrameProcessor {
     var hi = 0f
         private set
     private var ranged = false
+
+    /** [locked] as the last [process] read it: whether its [lo]..[hi] were held. */
+    var rangeLocked = false
+        private set
     var centre = 0f
         private set
 
@@ -36,7 +40,8 @@ class FrameProcessor {
     fun process(frame: ByteArray, strength: Float): Boolean {
         parse(frame, out = raw) ?: return false
         spots.update(raw)
-        if (!locked || !ranged) {
+        rangeLocked = locked
+        if (!rangeLocked || !ranged) {
             lo = raw.min()
             hi = spanHi(lo, raw.max())
             ranged = true
@@ -47,7 +52,7 @@ class FrameProcessor {
     }
 }
 
-/** The numbers shown for a frame (readout line, scale labels): one holder refilled in place, no per-frame allocation. */
+/** The numbers shown for a frame (marker and centre labels, scale labels, native readouts): one holder refilled in place, no per-frame allocation. */
 class Readouts {
     /** Raw 2x2 centre mean. */
     var centre = 0f
@@ -67,6 +72,10 @@ class Readouts {
     var hi = 0f
         private set
 
+    /** Whether lock range held [lo]..[hi] for this frame. */
+    var locked = false
+        private set
+
     fun fill(p: FrameProcessor) {
         centre = p.centre
         max = p.spots.hotCelsius
@@ -74,5 +83,47 @@ class Readouts {
         lo = p.lo
         mid = (p.lo + p.hi) / 2
         hi = p.hi
+        locked = p.rangeLocked
     }
+}
+
+/** Cold (Min, cold marker), centre and hot (Max, hot marker) colours, ARGB: one set for the picture and the native readouts. */
+const val COLD_COLOR = 0xFF00C8FF.toInt()
+const val CENTRE_COLOR = 0xFFFFFFFF.toInt()
+const val HOT_COLOR = 0xFFFF4D6D.toInt()
+
+/** The native readouts, each in its picture colour; layout in main.xml / MainActivity. */
+enum class Readout(val label: String, val color: Int) {
+    MIN("Min", COLD_COLOR),
+    CENTER("Center", CENTRE_COLOR),
+    MAX("Max", HOT_COLOR);
+
+    fun of(r: Readouts) = when (this) {
+        MIN -> r.min
+        CENTER -> r.centre
+        MAX -> r.max
+    }
+
+    /** The native text: the picture's [formatCelsius] digits for the same [r]. */
+    fun text(r: Readouts): String {
+        val out = CharArray(21)
+        return String(out, 0, formatCelsius(of(r), out))
+    }
+}
+
+/**
+ * Height of the native readout band under a picture shown full width at the top of a [width] x [height]
+ * stage: all the space left, at least [min], at most half the stage so a short one (landscape, split
+ * screen) still shows the picture.
+ */
+fun readoutBand(width: Int, height: Int, min: Int) = minOf(height / 2, maxOf(min, height - width * PICTURE_HEIGHT / PICTURE_WIDTH))
+
+/**
+ * Largest text size, at most [max], at which text [em] sizes wide and [lineEm] sizes tall fits a [width] x
+ * [height] box (same unit as [min]/[max]). [min] beats only the width bound: a box shorter than one [min]
+ * line gets a smaller size rather than a clipped value. Empty text is not width-bound.
+ */
+fun fitTextSize(em: Float, lineEm: Float, width: Float, height: Float, min: Float, max: Float): Float {
+    val byWidth = if (em > 0f) width / em else max
+    return minOf(max, height / lineEm, byWidth.coerceAtLeast(min))
 }
