@@ -1,6 +1,6 @@
 # 001 — TC001 Mini minimal viewer (Android)
 
-**Status**: in progress
+**Status**: shipped
 **Requested by**: babs
 **Date**: 2026-11-19
 
@@ -37,17 +37,17 @@ A small app with no third-party SDK and no network access. Plug the Mini in, the
 
 ## Acceptance criteria
 
-- [ ] **AC1** Given the app is installed, when the Mini is plugged in and the CAMERA and USB access prompts are accepted, then a live thermal image shows within 3 s at the camera's frame rate (25 fps).
-- [ ] **AC2** Displayed temperatures equal `raw/64 - 50` of the frame: unit test against `app/src/debug/assets/replay-mode2.bin`, a byte copy of `../capture/raw-mode2-4x2321.bin` (frame 0 min/max/mean 22.70 / 23.69 / 23.04 °C ± 0.01).
-- [ ] **AC3** The scale bar shows the hot colour at the top and labels high / middle / low matching the current range; with "lock range" on, the labels and colours stop following the scene.
-- [ ] **AC4** Hot and cold markers sit on the 3x3-smoothed extremes and carry their temperature on a dark backdrop; a competing spot less than 0.3 °C warmer (colder) does not move the marker, a clear winner does (unit test).
-- [ ] **AC5** Palette, rotation (0/90/180/270), mirror and smoothing strength change the view immediately and survive an app restart; strength 0 shows real pixels, and the rendered image at 0.5 lies between 0 and 1 (unit test, as in `live_view.py --selftest`).
-- [ ] **AC6** The photo button writes `Pictures/TC001/TC001_<timestamp>.png` (identical to the screen view) and `Documents/TC001/TC001_<timestamp>.bin` (18,568 bytes, the raw frame of the same instant); the PNG shows up in the phone gallery; `scripts/live_view.py --file <bin>` can read the `.bin`.
-- [ ] **AC7** Record / stop writes a playable `Movies/TC001/TC001_<timestamp>.mp4` (H.264, no audio track, ~25 fps, duration matching the recording ± 1 s).
-- [ ] **AC8** Unplugging the Mini while streaming or recording does not crash: the app shows "camera disconnected", a recording in progress is finalised and playable, re-plugging resumes the view.
-- [ ] **AC9** The release manifest declares exactly one `uses-permission`, `android.permission.CAMERA` (Android 9+ grants USB access to a UVC device only to apps holding it; asked at runtime only when the Mini is plugged in), and `uses-feature android.hardware.usb.host`; the APK has no network code path (no `INTERNET`).
-- [ ] **AC10** No runtime dependency besides the Android framework and the Kotlin standard library; release APK under 5 MB.
-- [ ] **AC11** The debug build replays a bundled capture until a usable camera is attached (camera errors show their message), so AC3-AC7 can be checked on an emulator.
+- [x] **AC1** Given the app is installed, when the Mini is plugged in and the CAMERA and USB access prompts are accepted, then a live thermal image shows within 3 s at the camera's frame rate (25 fps).
+- [x] **AC2** Displayed temperatures equal `raw/64 - 50` of the frame: unit test against `app/src/debug/assets/replay-mode2.bin`, a byte copy of `../capture/raw-mode2-4x2321.bin` (frame 0 min/max/mean 22.70 / 23.69 / 23.04 °C ± 0.01).
+- [x] **AC3** The scale bar shows the hot colour at the top and labels high / middle / low matching the current range; with "lock range" on, the labels and colours stop following the scene.
+- [x] **AC4** Hot and cold markers sit on the 3x3-smoothed extremes and carry their temperature on a dark backdrop; a competing spot less than 0.3 °C warmer (colder) does not move the marker, a clear winner does (unit test).
+- [x] **AC5** Palette, rotation (0/90/180/270), mirror and smoothing strength change the view immediately and survive an app restart; strength 0 shows real pixels, and the rendered image at 0.5 lies between 0 and 1 (unit test, as in `live_view.py --selftest`).
+- [x] **AC6** The photo button writes `Pictures/TC001/TC001_<timestamp>.png` (identical to the screen view) and `Documents/TC001/TC001_<timestamp>.bin` (18,568 bytes, the raw frame of the same instant); the PNG shows up in the phone gallery; `scripts/live_view.py --file <bin>` can read the `.bin`.
+- [x] **AC7** Record / stop writes a playable `Movies/TC001/TC001_<timestamp>.mp4` (H.264, no audio track, ~25 fps, duration matching the recording ± 1 s).
+- [x] **AC8** Unplugging the Mini while streaming or recording does not crash: the app shows "camera disconnected", a recording in progress is finalised and playable, re-plugging resumes the view once the system USB access prompt is accepted.
+- [x] **AC9** The release manifest declares exactly one `uses-permission`, `android.permission.CAMERA` (Android 9+ grants USB access to a UVC device only to apps holding it; asked at runtime only when the Mini is plugged in), and `uses-feature android.hardware.usb.host`; the APK has no network code path (no `INTERNET`).
+- [x] **AC10** No runtime dependency besides the Android framework and the Kotlin standard library; release APK under 5 MB.
+- [x] **AC11** The debug build replays a bundled capture until a usable camera is attached (camera errors show their message), so AC3-AC7 can be checked on an emulator.
 
 ## Phases
 
