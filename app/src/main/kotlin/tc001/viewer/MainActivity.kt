@@ -9,6 +9,9 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
+import android.graphics.Bitmap
+import android.graphics.Color
 import android.hardware.usb.UsbManager
 import android.os.Build
 import android.os.Bundle
@@ -19,13 +22,17 @@ import android.view.WindowInsets
 import android.widget.Button
 import android.widget.SeekBar
 import android.widget.TextView
+import android.widget.Toast
 import android.widget.ToggleButton
+import kotlin.concurrent.thread
 import kotlin.math.roundToInt
 import tc001.viewer.core.Access
 import tc001.viewer.core.FrameProcessor
 import tc001.viewer.core.Palette
 import tc001.viewer.core.Settings
+import tc001.viewer.core.captureName
 import tc001.viewer.core.nextAccess
+import tc001.viewer.core.rawSnapshot
 
 class MainActivity : Activity() {
     private val processor = FrameProcessor()
@@ -48,6 +55,20 @@ class MainActivity : Activity() {
     private lateinit var fps: TextView
     private lateinit var paletteButton: Button
     private lateinit var rotateButton: Button
+    private lateinit var photoButton: Button
+    private lateinit var recordButton: Button
+    private lateinit var recordColors: ColorStateList
+
+    // Set on the UI thread, taken by the source thread with the next composed frame.
+    @Volatile
+    private var photoRequested = false
+
+    // UI thread: the recording asked for, from Record until Stop; a start still in flight leaves [recorder] null.
+    private var recording: Any? = null
+
+    // Replaced on the UI thread; the source thread draws into whichever it reads, a finished one ignores frames.
+    @Volatile
+    private var recorder: Recorder? = null
 
     // Written by the one source thread alive at a time, read by the fps overlay.
     @Volatile
@@ -97,6 +118,8 @@ class MainActivity : Activity() {
 
         live = findViewById(R.id.live)
         live.fit(composer.bitmap.width, composer.bitmap.height)
+        val (width, height) = composer.bitmap.run { width to height }
+        thread(name = "recorder-prepare") { Recorder.prepare(contentResolver, width, height) }
         message = findViewById(R.id.message)
         // Retry after a dismissed or refused prompt without leaving the app.
         message.setOnClickListener { connect() }
@@ -110,6 +133,11 @@ class MainActivity : Activity() {
         findViewById<ToggleButton>(R.id.lock).setOnCheckedChangeListener { _, on -> processor.locked = on }
         rotateButton = findViewById(R.id.rotate)
         rotateButton.setOnClickListener { update(settings.copy(quarterTurns = (settings.quarterTurns + 1) % 4)) }
+        photoButton = findViewById(R.id.photo)
+        photoButton.setOnClickListener { photoRequested = true }
+        recordButton = findViewById(R.id.record)
+        recordColors = recordButton.textColors
+        recordButton.setOnClickListener { if (recording == null) startRecording() else stopRecording() }
         findViewById<ToggleButton>(R.id.mirror).apply {
             isChecked = settings.mirror
             setOnCheckedChangeListener { _, on -> update(settings.copy(mirror = on)) }
@@ -215,8 +243,13 @@ class MainActivity : Activity() {
     /** Switches to [new]; without one the view is hidden behind [text]. */
     private fun use(new: FrameSource?, text: Int) {
         source?.stop()
+        // The old source thread is gone: the recording holds only its frames, finalised before the next source draws.
+        stopRecording()
+        photoRequested = false
         source = new
         new?.start(::onFrame)
+        photoButton.isEnabled = new != null
+        showRecording()
         Log.i(UsbSource.TAG, "source: ${if (new == null) "none" else if (new is UsbSource) "usb" else "replay"}")
         live.keepScreenOn = new != null
         live.visibility = if (new != null) View.VISIBLE else View.INVISIBLE
@@ -249,8 +282,73 @@ class MainActivity : Activity() {
         val s = settings
         if (!processor.process(frame, s.smoothing)) return
         val p = processor
-        live.show(composer.compose(p.shown, p.lo, p.hi, s.palette, s.smoothing, p.spots, p.centre, s.quarterTurns, s.mirror))
+        val view = composer.compose(p.shown, p.lo, p.hi, s.palette, s.smoothing, p.spots, p.centre, s.quarterTurns, s.mirror)
+        live.show(view)
+        recorder?.draw(view)
+        if (photoRequested) {
+            photoRequested = false
+            takePhoto(view, frame)
+        }
     }
+
+    /** Source thread: snapshots [view] and [frame] (both reused by the next frame), saved on a thread of their own. */
+    private fun takePhoto(view: Bitmap, frame: ByteArray) {
+        val name = captureName(System.currentTimeMillis())
+        val png = view.copy(Bitmap.Config.ARGB_8888, false)
+        val raw = rawSnapshot(frame)
+        if (png == null) return runOnUiThread { toast(getString(R.string.photo_failed)) }
+        thread(name = "photo") {
+            val saved = contentResolver.savePhoto(name, png, raw)
+            runOnUiThread { toast(if (saved) getString(R.string.photo_saved, name) else getString(R.string.photo_failed)) }
+        }
+    }
+
+    /** The encoder and MediaStore set-up block: done on a thread of its own, the button stays disabled until it is known. */
+    private fun startRecording() {
+        val pressedAt = SystemClock.elapsedRealtime()
+        val token = Any()
+        recording = token
+        showRecording()
+        val name = captureName(System.currentTimeMillis())
+        val (width, height) = composer.bitmap.run { width to height }
+        thread(name = "recorder-start") {
+            val new = Recorder.start(contentResolver, name, width, height, pressedAt) { saved ->
+                runOnUiThread {
+                    // Ended on its own (encoder failure): the button must not keep offering Stop.
+                    if (recording === token) stopRecording()
+                    toast(if (saved) getString(R.string.video_saved, name) else getString(R.string.video_failed))
+                }
+            }
+            runOnUiThread {
+                when {
+                    recording !== token -> new?.finish() // stopped, backgrounded or source switched meanwhile
+                    new == null -> {
+                        recording = null
+                        toast(getString(R.string.video_failed))
+                    }
+                    else -> recorder = new
+                }
+                showRecording()
+            }
+        }
+    }
+
+    /** Finalises the recording in progress, if any, without waiting: the file is written off the UI thread. */
+    private fun stopRecording() {
+        recording = null
+        recorder?.finish()
+        recorder = null
+        showRecording()
+    }
+
+    private fun showRecording() {
+        val on = recorder != null
+        recordButton.isEnabled = source != null && (recording == null || on)
+        recordButton.setText(if (on) R.string.stop else R.string.record)
+        if (on) recordButton.setTextColor(Color.RED) else recordButton.setTextColor(recordColors)
+    }
+
+    private fun toast(text: String) = Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
 
     private fun update(new: Settings) {
         settings = new

@@ -20,4 +20,11 @@
     <string name="mirror_on">Mirrored</string>
     <string name="mirror_off">Mirror off</string>
     <string name="smoothing">Smoothing</string>
+    <string name="photo">Photo</string>
+    <string name="record">Record</string>
+    <string name="stop">● Stop</string>
+    <string name="photo_saved">Photo saved: %1$s</string>
+    <string name="photo_failed">Photo not saved</string>
+    <string name="video_saved">Video saved: %1$s</string>
+    <string name="video_failed">Video not saved</string>
 </resources>
