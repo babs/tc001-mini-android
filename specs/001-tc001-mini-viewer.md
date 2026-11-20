@@ -20,7 +20,7 @@ A small app with no third-party SDK and no network access. Plug the Mini in, the
 - Hot and cold spot markers with their temperature on a dark backdrop; spots are smoothed (3x3) and move only when a new place beats the current one by 0.3 °C, so noise does not make them jump.
 - Centre crosshair and centre temperature.
 - Rotate (90° steps) and mirror, for the way the Mini points when plugged into the phone.
-- Display smoothing strength `s` in [0, 1] (slider, default 0.5): spatial blend `nearest + s * (bilinear - nearest)` on the normalised plane, plus temporal EMA with `alpha = 1 - 0.6 * s` (s = 0 disables both). Display only: readouts, spots, photo `.bin` always use the raw frame. Same maths as `../scripts/live_view.py --smooth`.
+- Display smoothing strength `s` in [0, 1] (slider, default 0.5): spatial blend `nearest + s * (bilinear - nearest)` on the normalised plane, plus temporal EMA with `alpha = 1 - 0.6 * s` (s = 0 disables both). Display only: readouts, spots, photo `.bin` always use the raw frame. Same maths as `scripts/live_view.py --smooth`.
 - Photo: PNG exactly as displayed (with scale bar and markers) saved to `Pictures/TC001`, + `.bin` file holding the raw mode-2 frame, saved to `Documents/TC001` (MediaStore refuses non-media files under `Pictures`).
 - Video: MP4 (H.264, no audio) of the displayed view, saved to `Movies/TC001`.
 - Settings kept across launches: palette, rotation, mirror, smoothing.
@@ -90,5 +90,5 @@ None. Files only (MediaStore), settings in `SharedPreferences`.
 - Photo `.bin` = the untouched 18,568-byte mode-2 frame — directly replayable by the Linux tools.
 - Spot hysteresis 0.3 °C, label EMA alpha 0.3 — same values as the Linux viewer, tuned on live captures.
 - Release signed with a local key in the repo-ignored `keys/` folder; sideload only.
-- Code lives in `topdon/tc001-app/`, local git repo, no remote.
+- Code lives in this repository.
 - One permission, `android.permission.CAMERA`: Android 9+ (targetSdk >= 28) refuses USB access to UVC devices without it (`UsbUserPermissionManager: Camera permission required for USB video class devices`); targetSdk 27 was rejected (compatibility mode, install warning).

@@ -94,8 +94,8 @@ class RenderTest {
     }
 
     @Test
-    fun ironbowMatchesLiveViewLut() {
-        // Must match live_view.LUT.
+    fun ironbowLutMatchesReferenceStops() {
+        // Reference ironbow LUT (linear interpolation between the stops, truncated).
         val expected = mapOf(0 to 0x000000, 64 to 0x50008B, 100 to 0x94115E, 128 to 0xC81E3B,
             191 to 0xF98100, 230 to 0xFFDC2C, 255 to 0xFFFFFF)
         for ((i, rgb) in expected) assertEquals("index $i", rgb or (0xFF shl 24), Palette.IRONBOW.lut[i])

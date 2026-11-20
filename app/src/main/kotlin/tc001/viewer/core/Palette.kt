@@ -12,7 +12,7 @@ enum class Palette(val lut: IntArray) {
     BLACK_HOT(lut(doubleArrayOf(0.0, 1.0), intArrayOf(0xFFFFFF, 0x000000))),
 }
 
-// Double maths + truncation match live_view.py np.interp(...).astype(uint8) bit for bit.
+// Linear interpolation between stops in double, truncated to 0..255 (not rounded).
 private fun lut(stops: DoubleArray, rgb: IntArray) = IntArray(256) { i ->
     val x = i / 255.0
     val k = (1 until stops.size).first { x <= stops[it] }

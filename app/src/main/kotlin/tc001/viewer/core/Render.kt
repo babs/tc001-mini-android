@@ -82,7 +82,7 @@ class TemporalSmoother {
     }
 }
 
-/** Pixel-centre aligned, edge-clamped bilinear tables for one axis (port of live_view.upscale_linear). */
+/** Pixel-centre aligned, edge-clamped bilinear tables for one axis (output pixel centres mapped back to source pixel centres). */
 private class Axis(n: Int, scale: Int) {
     val near = IntArray(n * scale) { it / scale }
     val i0 = IntArray(n * scale)

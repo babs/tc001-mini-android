@@ -1,0 +1,68 @@
+# tc001-mini-android
+
+<img src="docs/screenshot.png" alt="Live view: thermal image of a hand with hot/cold markers, horizontal scale and large Min / Max / Center readouts" width="300" align="right">
+
+A small Android viewer for the TOPDON TC001 Mini thermal camera. No vendor SDK, no network access, no account.
+
+Plug the camera in: the app opens on the live thermal image with a colour scale, the hottest and coldest spots marked with their temperature, and the centre temperature. Photos and videos go to the phone gallery.
+
+## Features
+
+- Live view at the camera's 25 fps, read straight from USB (UVC bulk stream, 96x96 temperatures).
+- Palettes: ironbow, white-hot, black-hot. Auto range, or lock the current range.
+- Hot / cold spot markers (3x3-smoothed, with hysteresis so noise does not make them jump) and a centre crosshair.
+- Large Min / Max / Center readouts, readable at arm's length.
+- Rotation (90° steps), mirror, display smoothing. Settings are kept across launches.
+- Photo (button or either volume key): the picture as shown on screen plus the raw frame.
+- Video: H.264 MP4 of the picture, no audio.
+- Re-plugging the camera resumes the stream.
+
+## Supported hardware
+
+- TOPDON TC001 Mini (USB `2bdf:0102`). Other TOPDON models are not supported.
+- Android 10 (API 29) or later, with USB host (USB-C OTG).
+
+## Permissions
+
+The only permission is `android.permission.CAMERA`, asked when the camera is plugged in: Android 9+ grants USB access to a UVC camera only to apps holding it. There is no `INTERNET` permission and no storage permission (files are written through MediaStore).
+
+## Files
+
+| What | Where |
+|---|---|
+| Photo, as displayed | `Pictures/TC001/TC001_<timestamp>.png` |
+| Raw frame of the same instant | `Documents/TC001/TC001_<timestamp>.bin` |
+| Video | `Movies/TC001/TC001_<timestamp>.mp4` |
+
+The `.bin` is the untouched 18,568-byte mode-2 frame: a 136-byte header followed by 96x96 little-endian `uint16`, `celsius = raw / 64 - 50`.
+
+Each photo PNG carries a `tEXt` chunk with keyword `tc001` holding the readouts and view settings as JSON:
+
+```json
+{"min":23.4,"center":23.8,"max":24.2,"lo":23.2,"hi":24.2,"palette":"ironbow","rotation":0,"mirror":false,"smoothing":0.45,"locked":false,"time":"2026-11-20T00:48:57.328+01:00"}
+```
+
+Read it with `exiftool -Tc001 photo.png`.
+
+## Build
+
+Requires a JDK 17+ and the Android SDK (platform 36); point `ANDROID_HOME` or `sdk.dir` in `local.properties` at it.
+
+```sh
+./gradlew assembleDebug
+adb install app/build/outputs/apk/debug/app-debug.apk
+```
+
+For a release build, put `keys/keystore.properties` (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`; the `keys/` folder is git-ignored) next to your keystore and run `./gradlew assembleRelease`: it writes `app/build/outputs/apk/release/app-release.apk`. Without that file the release APK is `app-release-unsigned.apk` and must be signed with `apksigner` before installing.
+
+The debug build replays a bundled capture when no camera is attached, so the UI can be tried on an emulator.
+
+`./gradlew check` runs the unit tests and lint, and fails if the release build gains a third-party runtime dependency or any permission other than `CAMERA`. `assembleRelease` fails if the APK grows past 5 MB.
+
+## Specs
+
+Feature specs and their acceptance criteria are in [`specs/`](specs/).
+
+## License
+
+[MIT](LICENSE)
