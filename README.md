@@ -17,6 +17,20 @@ Plug the camera in: the app opens on the live thermal image with a colour scale,
 - Video: H.264 MP4 of the picture, no audio.
 - Re-plugging the camera resumes the stream.
 
+## Install
+
+Download `tc001-mini-<version>.apk` from the [latest release](https://github.com/babs/tc001-mini-android/releases/latest) and open it on the phone (allow installs from your browser or file manager when asked).
+
+To get updates, add the repository URL to [Obtainium](https://github.com/ImranR98/Obtainium): it watches the GitHub releases and installs new versions. The app itself has no network access.
+
+Release APKs are signed with this certificate (SHA-256):
+
+```
+6E:AD:00:D4:2A:19:CF:1E:A2:30:3A:DA:72:55:15:30:12:C0:A8:4D:42:6A:1B:EE:0A:6C:78:50:37:E0:60:E2
+```
+
+Each release APK also has a GitHub build provenance attestation: `gh attestation verify tc001-mini-<version>.apk --repo babs/tc001-mini-android`.
+
 ## Supported hardware
 
 - TOPDON TC001 Mini (USB `2bdf:0102`). Other TOPDON models are not supported.
@@ -54,6 +68,8 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
 For a release build, put `keys/keystore.properties` (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`; the `keys/` folder is git-ignored) next to your keystore and run `./gradlew assembleRelease`: it writes `app/build/outputs/apk/release/app-release.apk`. Without that file the release APK is `app-release-unsigned.apk` and must be signed with `apksigner` before installing.
+
+Pushing a tag `vX.Y.Z` runs the release workflow. A first job builds the unsigned APK with `versionName` = the tag without its `v` and `versionCode` = the commit count (it fails if that count is lower than another release tag's). A second job signs it with the key held in the repository secrets (`TC001_KEYSTORE_B64`, `TC001_KEYSTORE_PASSWORD` used for both the store and the key, `TC001_KEY_ALIAS`), checks the certificate against the one above, attests it and attaches it to a GitHub release. Tags `vX.Y.Z-*` are published as pre-releases.
 
 The debug build replays a bundled capture when no camera is attached, so the UI can be tried on an emulator.
 

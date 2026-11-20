@@ -21,8 +21,9 @@ android {
         applicationId = "tc001.viewer"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        // Release CI passes the tag as versionName (update trackers compare it) and a monotonic versionCode.
+        versionCode = (findProperty("versionCode") as String?)?.toInt() ?: 1
+        versionName = (findProperty("versionName") as String?) ?: "0.1.0"
     }
 
     signingConfigs {
