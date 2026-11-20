@@ -14,7 +14,7 @@ The thermal image fills the width of the screen, at the top. Under it, a horizon
 
 ## Scope
 
-- Composed picture 768 x 832: thermal image 768 x 768 on top (full width), then a 64 px band with the horizontal scale bar (cold left, hot right) and its low / middle / high labels with °C. The vertical scale panel and any readout line in the picture go away. Colour code: cold marker cyan, hot marker pink-red, centre crosshair badge white. Crosshair and marker boxes twice as thick as in spec 001.
+- Composed picture 768 x 832: thermal image 768 x 768 on top (full width), then a 64 px band with the horizontal scale bar (cold left, hot right) and its low / middle / high labels with °C. The vertical scale panel and any readout line in the picture go away. Colour code: cold marker cyan, hot marker pink-red, centre crosshair badge white. Crosshair and marker boxes twice as thick as in spec 001, on a thin semi-transparent black outline of even width.
 - The live view sits at the top of the screen, leaving the space below it to the large readouts.
 - Large native readouts (Android text views, outside the composed picture) for Min and Max side by side with Center below, refreshed about 5 times per second, hidden when no source runs.
 - Volume up and volume down take a photo (same as the Photo button) while a source runs; the volume does not change then.
@@ -65,6 +65,6 @@ None.
 - Photo metadata as a PNG `tEXt` chunk rather than EXIF: framework EXIF writing on PNG is unreliable across versions. MP4 gets no JSON (MediaMuxer has no free-form metadata).
 - Colour code: cold = cyan (cold marker, Min), hot = pink-red (hot marker box and label, Max), centre = white, on the picture and in the native readouts (user choice).
 - Native layout Min | Max on one row, Center below in larger type (user choice): Center is the value aimed at; two columns give Min/Max twice the width. Band sized for 56 sp, values sized 32 sp to ~110 / ~140 sp to fill it; Min and Max share one size (user asked for bigger than 40 sp).
-- Crosshair and marker boxes drawn twice as thick as in 001 (user choice: readable at arm's length).
+- Crosshair and marker boxes drawn twice as thick as in 001, on a thin semi-transparent black outline of even width (ends included) so they stay visible on any palette colour (user choice: readable at arm's length).
 - Large readouts refresh at ~5 Hz — fast enough to follow a scan, slow enough to read (same cadence as `scripts/live_view.py`).
 - The picture changes from 864 x 768 to 768 x 832 (narrower, taller; phase 1 shipped 768 x 896 with a readout line, dropped in phase 2 because the marker labels already show the values): photos and videos change aspect ratio from this version on.

@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.Typeface
 import tc001.viewer.core.BAR_MARGIN
 import tc001.viewer.core.BAR_WIDTH
@@ -44,10 +45,21 @@ class FrameComposer {
 
     val bitmap: Bitmap = Bitmap.createBitmap(PICTURE_WIDTH, PICTURE_HEIGHT, Bitmap.Config.ARGB_8888)
     private val canvas = Canvas(bitmap)
-    private val stroke = Paint().apply {
+    private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = maxOf(1f, 2 * scale / 3f)
     }
+
+    // Outline thickness on every side, arm ends included.
+    private val outline = scale / 6f
+    private val halo = Paint(stroke).apply {
+        color = 0xB0000000.toInt()
+        strokeWidth = stroke.strokeWidth + 2 * outline
+    }
+    // One path per cross: a semi-transparent outline drawn as two lines would blend twice where they cross.
+    // Butt caps: the outline's arms are longer by `outline` so the ends get the same outline as the sides.
+    private val haloCross = cross(outline)
+    private val strokeCross = cross(0f)
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         typeface = Typeface.MONOSPACE
         textSize = 2.5f * scale
@@ -78,8 +90,8 @@ class FrameComposer {
 
         val c = side / 2f
         stroke.color = Color.WHITE
-        canvas.drawLine(c - half, c, c + half, c, stroke)
-        canvas.drawLine(c, c - half, c, c + half, stroke)
+        canvas.drawPath(haloCross, halo)
+        canvas.drawPath(strokeCross, stroke)
         // Lower-right of the crosshair, clear of both arms and of the measured 2x2 block; before the markers so they stay on top.
         badge(formatCelsius(r.centre, label), c + scale + 2, c + scale + 2, CENTRE_COLOR)
         val tracked = if (spots?.ready == true) spots else null
@@ -104,6 +116,14 @@ class FrameComposer {
         return bitmap
     }
 
+    private fun cross(ext: Float) = Path().apply {
+        val c = side / 2f
+        moveTo(c - half - ext, c)
+        lineTo(c + half + ext, c)
+        moveTo(c, c - half - ext)
+        lineTo(c, c + half + ext)
+    }
+
     private fun scaleLabel(celsius: Float, x: Float, align: Paint.Align) {
         labels.textAlign = align
         canvas.drawText(label, 0, formatCelsius(celsius, label), x, labelBaseline, labels)
@@ -113,12 +133,13 @@ class FrameComposer {
         val x = index % SIZE * scale + scale / 2f
         val y = index / SIZE * scale + scale / 2f
         stroke.color = color
+        canvas.drawRect(x - half, y - half, x + half, y + half, halo)
         canvas.drawRect(x - half, y - half, x + half, y + half, stroke)
 
         val n = formatCelsius(celsius, label)
         val w = badgeWidth(n)
-        // Clear of the box's outer stroke edge.
-        val gap = half + stroke.strokeWidth / 2 + 2
+        // The label must clear the outline, not just the stroke.
+        val gap = half + halo.strokeWidth / 2 + 2
         badge(n, if (x + gap + w <= side) x + gap else x - gap - w, y - half, color)
     }
 
