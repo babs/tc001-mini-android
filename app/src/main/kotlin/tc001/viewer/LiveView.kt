@@ -7,6 +7,7 @@ import android.graphics.PixelFormat
 import android.util.AttributeSet
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import tc001.viewer.core.turnedBox
 
 /**
  * Shows composed frames from the source thread, turned back onto the portrait screen by the phone's quarter
@@ -26,9 +27,9 @@ class LiveView(context: Context, attrs: AttributeSet?) : SurfaceView(context, at
 
     /** UI thread: sizes the surface for [width] x [height] frames composed for a phone turned clockwise by [turns] quarters; the view keeps that aspect ratio. */
     fun fit(width: Int, height: Int, turns: Int) {
-        val odd = turns % 2 != 0
-        frameWidth = if (odd) height else width
-        frameHeight = if (odd) width else height
+        val (w, h) = turnedBox(width, height, turns)
+        frameWidth = w
+        frameHeight = h
         holder.setFixedSize(frameWidth, frameHeight)
         requestLayout()
     }

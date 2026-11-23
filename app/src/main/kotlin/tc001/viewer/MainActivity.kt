@@ -40,17 +40,23 @@ import tc001.viewer.core.Palette
 import tc001.viewer.core.Readout
 import tc001.viewer.core.Readouts
 import tc001.viewer.core.fitTextSize
+import tc001.viewer.core.labelTextSize
 import tc001.viewer.core.Reconnect
 import tc001.viewer.core.Settings
 import tc001.viewer.core.VolumeKey
 import tc001.viewer.core.captureName
+import tc001.viewer.core.CENTRE_MAX_SP
+import tc001.viewer.core.PAIR_MAX_SP
 import tc001.viewer.core.nextAccess
+import tc001.viewer.core.pairTextSize
 import tc001.viewer.core.photoJson
 import tc001.viewer.core.pictureTurns
 import tc001.viewer.core.rawSnapshot
 import tc001.viewer.core.readoutBand
+import tc001.viewer.core.readoutFloor
 import tc001.viewer.core.snapQuarter
 import tc001.viewer.core.turnToDraw
+import tc001.viewer.core.turnedBox
 import tc001.viewer.core.volumeKey
 
 class MainActivity : Activity() {
@@ -80,9 +86,13 @@ class MainActivity : Activity() {
     private lateinit var photoButton: Button
     private lateinit var recordButton: Button
     private lateinit var recordColors: ColorStateList
-    private lateinit var readoutRow: LinearLayout
+    private lateinit var readoutRow: View
+    private lateinit var readoutBox: LinearLayout
+    private lateinit var readoutPair: LinearLayout // Min and Max
     private lateinit var values: Map<Readout, TextView>
     private val readoutTick = Runnable { showReadouts() }
+    private val measure = Paint() // UI thread, reused by ems
+    private val labels = ArrayList<TextView>(Readout.entries.size)
 
     // Set on the UI thread, taken by the source thread with the next composed frame.
     @Volatile
@@ -96,11 +106,11 @@ class MainActivity : Activity() {
     @Volatile
     private var drawn = 0
 
-    // UI thread: the turn held from Record until Stop (003-AC6), null while not recording.
-    private var held: Int? = null
+    /** A recording asked for, compared by identity; [held] is the turn drawn from Record until Stop (003-AC6). */
+    private class Recording(val held: Int)
 
     // UI thread: the recording asked for, from Record until Stop; a start still in flight leaves [recorder] null.
-    private var recording: Any? = null
+    private var recording: Recording? = null
 
     // Replaced on the UI thread; the source thread draws into whichever it reads, a finished one ignores frames.
     @Volatile
@@ -170,7 +180,7 @@ class MainActivity : Activity() {
                 val new = snapQuarter(angle, phone)
                 if (new == phone) return
                 phone = new
-                val t = turnToDraw(phone, held)
+                val t = turnToDraw(phone, recording?.held)
                 if (t != drawn) turn(t)
             }
         }
@@ -207,16 +217,23 @@ class MainActivity : Activity() {
         showSettings()
 
         readoutRow = findViewById(R.id.readouts)
-        val pair = LinearLayout(this)
-        readoutRow.addView(pair, LinearLayout.LayoutParams(MATCH_PARENT, 0, PAIR_MAX_SP))
-        val min = readoutColumn(Readout.MIN, pair, 1f)
-        val max = readoutColumn(Readout.MAX, pair, 1f)
-        val centre = readoutColumn(Readout.CENTER, readoutRow, CENTRE_MAX_SP)
+        readoutBox = findViewById(R.id.readout_box)
+        readoutPair = LinearLayout(this)
+        readoutBox.addView(readoutPair, LinearLayout.LayoutParams(MATCH_PARENT, 0, PAIR_MAX_SP))
+        val min = readoutColumn(Readout.MIN, readoutPair, 1f)
+        val max = readoutColumn(Readout.MAX, readoutPair, 1f)
+        val centre = readoutColumn(Readout.CENTER, readoutBox, CENTRE_MAX_SP)
         values = mapOf(Readout.MIN to min, Readout.CENTER to centre, Readout.MAX to max)
         // Rows split the band PAIR : CENTRE; the floor gives the Min/Max row its label and a 56 sp value.
         val label = lineHeight(LABEL_SP)
         val bandMin = (label + lineHeight(VALUE_MIN_SP)) * (PAIR_MAX_SP + CENTRE_MAX_SP) / PAIR_MAX_SP
-        readoutRow.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> readoutRow.post(::fitReadouts) }
+        // Only on a new size: a refit relayouts the band and the box; new values refit from showReadouts.
+        readoutRow.addOnLayoutChangeListener { _, l, t, r, b, ol, ot, or, ob ->
+            if (r - l != or - ol || b - t != ob - ot) readoutRow.post(::layoutReadouts)
+        }
+        readoutBox.addOnLayoutChangeListener { _, l, t, r, b, ol, ot, or, ob ->
+            if (r - l != or - ol || b - t != ob - ot) readoutBox.post(::fitReadouts)
+        }
         findViewById<View>(R.id.stage).addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
             val band = readoutBand(right - left, bottom - top, bandMin.toInt())
             // Posted: a layout change listener runs inside the layout pass.
@@ -387,7 +404,33 @@ class MainActivity : Activity() {
         live.fit(composer.bitmap.width, composer.bitmap.height, turns)
         message.rotation = -90f * turns
         fitMessage()
+        layoutReadouts()
     }
+
+    /** Lays the readouts out in the box the user sees once the band turns with the phone, turned to read upright (003-AC3). */
+    private fun layoutReadouts() {
+        val (width, height) = turnedBox(readoutRow.width, readoutRow.height, drawn)
+        val box = readoutBox.layoutParams
+        if (box.width != width || box.height != height) {
+            box.width = width
+            box.height = height
+            readoutBox.requestLayout()
+        }
+        readoutBox.rotation = -90f * drawn
+        val stacked = drawn % 2 != 0
+        val pair = readoutPair
+        if (pair.orientation != if (stacked) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL) {
+            pair.orientation = if (stacked) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+            for (i in 0 until pair.childCount) pair.getChildAt(i).layoutParams = weighted(pair, 1f)
+            (pair.layoutParams as LinearLayout.LayoutParams).weight = if (stacked) 2 * PAIR_MAX_SP else PAIR_MAX_SP
+            // A square band keeps its box size: the size-gated listener would not refit the new arrangement.
+            readoutBox.post(::fitReadouts)
+        }
+    }
+
+    /** Layout params sharing [parent]'s length by [weight] and filling across it. */
+    private fun weighted(parent: LinearLayout, weight: Float) =
+        if (parent.orientation == LinearLayout.HORIZONTAL) LinearLayout.LayoutParams(0, MATCH_PARENT, weight) else LinearLayout.LayoutParams(MATCH_PARENT, 0, weight)
 
     /** Turned a quarter, the message wraps to its slot's height, the width it has once turned. */
     private fun fitMessage() {
@@ -415,6 +458,9 @@ class MainActivity : Activity() {
             setTextSize(TypedValue.COMPLEX_UNIT_SP, LABEL_SP)
             gravity = Gravity.CENTER
             includeFontPadding = false
+            // One line at most: a wrapped label in a narrow turned box would take its value's height.
+            maxLines = 1
+            setHorizontallyScrolling(true)
         }
         val value = TextView(this).apply {
             setTextColor(item.color)
@@ -424,11 +470,13 @@ class MainActivity : Activity() {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             includeFontPadding = false
             maxLines = 1
+            // Keeps one line: a hair over is clipped at the padding edge instead of wrapping the last digit away.
+            setHorizontallyScrolling(true)
         }
+        labels += label
         column.addView(label, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         column.addView(value, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
-        val horizontal = parent.orientation == LinearLayout.HORIZONTAL
-        parent.addView(column, if (horizontal) LinearLayout.LayoutParams(0, MATCH_PARENT, weight) else LinearLayout.LayoutParams(MATCH_PARENT, 0, weight))
+        parent.addView(column, weighted(parent, weight))
         return value
     }
 
@@ -436,13 +484,16 @@ class MainActivity : Activity() {
 
     /** [v]'s text width and line height, in multiples of its text size. */
     private fun ems(v: TextView): Pair<Float, Float> {
-        val p = v.paint
-        return p.measureText(v.text, 0, v.length()) / p.textSize to p.fontMetrics.run { descent - ascent } / p.textSize
+        // At one fixed size: widths do not scale exactly with size, so measuring at the size just fitted would never settle.
+        measure.set(v.paint)
+        measure.textSize = EM_PX
+        return measure.measureText(v.text, 0, v.length()) / EM_PX to measure.fontMetrics.run { descent - ascent } / EM_PX
     }
 
     /**
-     * Min and Max at one shared size, the largest at which both fit their boxes; Center on its own. A wide value
-     * on a narrow screen goes below the band's 56 sp, down to 32 sp; only a too-short box goes lower.
+     * Min and Max at one shared size, the largest at which both fit their boxes and below Center; Center on its own. A wide value
+     * on a narrow screen goes below the band's 56 sp, down to 32 sp upright; only a too-short box goes lower. Turned a
+     * quarter, the width always binds.
      */
     private fun fitReadouts() {
         val min = values.getValue(Readout.MIN)
@@ -450,15 +501,29 @@ class MainActivity : Activity() {
         val centre = values.getValue(Readout.CENTER)
         // Not laid out yet: the next layout pass fits them.
         if (min.height == 0 || centre.height == 0) return
+        var relabelled = false
+        for (label in labels) {
+            val size = labelTextSize(ems(label).first, innerWidth(label), sp(LABEL_SP))
+            if (size != label.textSize) {
+                label.setTextSize(TypedValue.COMPLEX_UNIT_PX, size)
+                relabelled = true
+            }
+        }
+        // A new label height resizes the value boxes: refit after that layout, which the post queues behind.
+        if (relabelled) {
+            readoutBox.post(::fitReadouts)
+            return
+        }
+        val (centreEm, centreLine) = ems(centre)
+        val centreSize = fitTextSize(centreEm, centreLine, innerWidth(centre), centre.height.toFloat(), readoutFloor(drawn, sp(VALUE_FIT_SP)), sp(CENTRE_MAX_SP))
+        centre.setTextSize(TypedValue.COMPLEX_UNIT_PX, centreSize)
         val (minEm, line) = ems(min)
-        val pair = fitTextSize(maxOf(minEm, ems(max).first), line, innerWidth(min), min.height.toFloat(), sp(VALUE_FIT_SP), sp(PAIR_MAX_SP))
+        val pair = pairTextSize(
+            fitTextSize(maxOf(minEm, ems(max).first), line, innerWidth(min), min.height.toFloat(), readoutFloor(drawn, sp(VALUE_FIT_SP)), sp(PAIR_MAX_SP)),
+            centreSize,
+        )
         min.setTextSize(TypedValue.COMPLEX_UNIT_PX, pair)
         max.setTextSize(TypedValue.COMPLEX_UNIT_PX, pair)
-        val (centreEm, centreLine) = ems(centre)
-        centre.setTextSize(
-            TypedValue.COMPLEX_UNIT_PX,
-            fitTextSize(centreEm, centreLine, innerWidth(centre), centre.height.toFloat(), sp(VALUE_FIT_SP), sp(CENTRE_MAX_SP)),
-        )
     }
 
     private fun innerWidth(v: TextView) = (v.width - v.paddingLeft - v.paddingRight).toFloat()
@@ -468,9 +533,9 @@ class MainActivity : Activity() {
 
     private fun showReadouts() {
         val texts = synchronized(readouts) { if (filled) Readout.entries.associateWith { it.text(readouts) } else null }
-        if (texts != null) {
+        // "-" is narrower than a digit: a same-length value can still be wider, so any changed text refits.
+        if (texts != null && texts.any { (item, t) -> !values.getValue(item).text.contentEquals(t) }) {
             for ((item, t) in texts) values.getValue(item).text = t
-            // "-" is narrower than a digit: a same-length value can still be wider, so refit every tick.
             fitReadouts()
         }
         readoutRow.postDelayed(readoutTick, READOUT_PERIOD_MS)
@@ -515,9 +580,8 @@ class MainActivity : Activity() {
     /** The encoder and MediaStore set-up block: done on a thread of its own, the button stays disabled until it is known. */
     private fun startRecording() {
         val pressedAt = SystemClock.elapsedRealtime()
-        val token = Any()
+        val token = Recording(drawn)
         recording = token
-        held = drawn
         showRecording()
         val name = captureName(System.currentTimeMillis())
         val (width, height) = composer.bitmap.run { width to height }
@@ -549,10 +613,8 @@ class MainActivity : Activity() {
         recorder?.finish()
         recorder = null
         showRecording()
-        held = null
         // After finish(): no frame drawn for the new turn reaches the file.
-        val t = turnToDraw(phone, held)
-        if (t != drawn) turn(t)
+        if (drawn != phone) turn(phone)
     }
 
     private fun showRecording() {
@@ -598,7 +660,6 @@ class MainActivity : Activity() {
         const val LABEL_SP = 16f
         const val VALUE_MIN_SP = 56f
         const val VALUE_FIT_SP = 32f
-        const val PAIR_MAX_SP = 110f
-        const val CENTRE_MAX_SP = 140f
+        const val EM_PX = 100f
     }
 }

@@ -49,15 +49,23 @@
                 android:visibility="gone" />
         </FrameLayout>
 
-        <!-- Large Min | Max over Center (002-AC4): views, not composed into the bitmap, so photos and videos never carry them. -->
-        <!-- Pinned LTR: Min stays under the cold (left) end of the scale in RTL locales too. -->
-        <LinearLayout
+        <!-- Large Min | Max over Center (002-AC4), sideways Min over Max over Center (003-AC3): views, not composed into the bitmap, so photos and videos never carry them. -->
+        <!-- The band keeps its place; the box inside is sized and turned for the user (003-AC3). -->
+        <FrameLayout
             android:id="@+id/readouts"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layoutDirection="ltr"
-            android:orientation="vertical"
-            android:visibility="invisible" />
+            android:visibility="invisible">
+
+            <!-- Pinned LTR: Min stays under the cold (left) end of the scale in RTL locales too. -->
+            <LinearLayout
+                android:id="@+id/readout_box"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_gravity="center"
+                android:layoutDirection="ltr"
+                android:orientation="vertical" />
+        </FrameLayout>
     </LinearLayout>
 
     <LinearLayout

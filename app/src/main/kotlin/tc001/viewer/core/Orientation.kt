@@ -16,6 +16,9 @@ fun snapQuarter(angle: Int, current: Int): Int {
     return if (minOf(d, 360 - d) <= SNAP_DEGREES) q else current
 }
 
+/** The box a [width] x [height] area shows a user whose phone is turned by [turns] quarters (003-AC2, 003-AC3). */
+fun turnedBox(width: Int, height: Int, turns: Int) = if (turns % 2 != 0) height to width else width to height
+
 /** The phone turns to draw for: [held] from Record to Stop (003-AC6), else the [phone]'s. */
 fun turnToDraw(phone: Int, held: Int?) = held ?: phone
 

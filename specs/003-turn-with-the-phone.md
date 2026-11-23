@@ -35,7 +35,7 @@ The app behaves like a camera app. The layout never moves: the picture stays at 
 
 - [ ] **AC1** Turning the phone never relays the app out: the picture, the readout band and the buttons keep their places on the screen at 0°, 90°, 180° and 270°.
 - [ ] **AC2** At each orientation the picture on screen is upright for the user: the scale band runs along the user's bottom edge of the picture, its labels and the marker and centre labels read upright, the thermal scene keeps its place on the screen as in portrait, and the picture is as wide as in portrait (no shrink to a landscape height).
-- [ ] **AC3** At each orientation Min, Max and Center stay in the band under the picture (phone frame), turned to read upright, with the values fitted to the turned box as in 002-AC4 and equal to the picture's labels.
+- [ ] **AC3** At each orientation Min, Max and Center stay in the band under the picture (phone frame), turned to read upright (sideways, Min over Max over Center), with the values fitted to the turned box as in 002-AC4 and equal to the picture's labels.
 - [ ] **AC4** The orientation changes only once the phone is within 30° of the next quarter (no flicker around 45°), within 0.5 s, and holds while the phone lies flat; the status message turns with it.
 - [ ] **AC5** A photo taken at any orientation is a 768 x 832 PNG showing exactly what the screen showed, upright (during a recording, the orientation held per AC6); its `.bin` is the untouched frame; its JSON keeps every 002-AC7 field (`rotation` is still the Rotate button setting) and adds `orientation` (0, 90, 180 or 270), the turn the picture was drawn for.
 - [ ] **AC6** A video keeps the orientation it started with until Stop (the live view holds it too while recording) and is still the 002-AC6 MP4.
@@ -69,3 +69,4 @@ None (one more field in the photo JSON).
 - Photos are saved upright as seen, not in the phone's frame — because a gallery shows them without knowing how the phone was held.
 - The orientation is frozen while recording — a video that turns half way plays sideways in every player.
 - Button labels do not turn — four short buttons per row cannot hold their text turned a quarter.
+- Sideways, Min over Max over Center: in the turned band Min / Max reach about 86 sp against 45 sp side by side (user choice).

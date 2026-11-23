@@ -118,6 +118,19 @@ enum class Readout(val label: String, val color: Int) {
  */
 fun readoutBand(width: Int, height: Int, min: Int) = minOf(height / 2, maxOf(min, height - width * PICTURE_HEIGHT / PICTURE_WIDTH))
 
+/** Largest Min/Max and Center readout sizes (002-AC4), in sp. */
+const val PAIR_MAX_SP = 110f
+const val CENTRE_MAX_SP = 140f
+
+/** Min/Max size for a [fit] next to Center at [centre]: kept below it in the caps' ratio, as stacked they share its width (002-AC4, 003-AC3). */
+fun pairTextSize(fit: Float, centre: Float) = minOf(fit, centre * PAIR_MAX_SP / CENTRE_MAX_SP)
+
+/** Readout label size: [max], or less so a text [em] sizes wide fits a [width] column (003-AC3: a narrow turned band). */
+fun labelTextSize(em: Float, width: Float, max: Float) = fitTextSize(em, 1f, width, Float.POSITIVE_INFINITY, 0f, max)
+
+/** Smallest readout size: [floor] upright (002-AC4); none turned a quarter, where the box is narrow and its width must always bind (003-AC3). */
+fun readoutFloor(turns: Int, floor: Float) = if (turns % 2 != 0) 0f else floor
+
 /**
  * Largest text size, at most [max], at which text [em] sizes wide and [lineEm] sizes tall fits a [width] x
  * [height] box (same unit as [min]/[max]). [min] beats only the width bound: a box shorter than one [min]
