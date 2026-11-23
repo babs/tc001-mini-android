@@ -423,10 +423,16 @@ class MainActivity : Activity() {
             pair.orientation = if (stacked) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
             for (i in 0 until pair.childCount) pair.getChildAt(i).layoutParams = weighted(pair, 1f)
             (pair.layoutParams as LinearLayout.LayoutParams).weight = if (stacked) 2 * PAIR_MAX_SP else PAIR_MAX_SP
+            // Stacked, no value has a side neighbour: the gap would only shrink the width-bound values.
+            val gap = if (stacked) 0 else valueGap
+            for (v in values.values) v.setPadding(gap, 0, gap, 0)
             // A square band keeps its box size: the size-gated listener would not refit the new arrangement.
             readoutBox.post(::fitReadouts)
         }
     }
+
+    /** Horizontal padding of a value: a visible gap between Min and Max side by side. */
+    private val valueGap get() = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 8f, resources.displayMetrics).toInt()
 
     /** Layout params sharing [parent]'s length by [weight] and filling across it. */
     private fun weighted(parent: LinearLayout, weight: Float) =
@@ -464,9 +470,7 @@ class MainActivity : Activity() {
         }
         val value = TextView(this).apply {
             setTextColor(item.color)
-            // The padding keeps a visible gap between neighbouring values.
-            val gap = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 8f, resources.displayMetrics).toInt()
-            setPadding(gap, 0, gap, 0)
+            setPadding(valueGap, 0, valueGap, 0)
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             includeFontPadding = false
             maxLines = 1
