@@ -27,15 +27,15 @@ fun scaleBar(palette: Palette, width: Int) =
 fun scaleColumn(palette: Palette, height: Int) = scaleBar(palette, height).apply { reverse() }
 
 /**
- * Rows of the sideways scale band (003-AC9), top to bottom, for text [line] px tall in a [height] px band: the
+ * Rows of the sideways scale band (003-AC9), top to bottom, for text [line] px tall in the picture-high band: the
  * °C unit, the high label, the bar, the low label; the middle label is centred on the bar. The band is only
  * [BAND] px wide, too narrow for a label beside the bar.
  */
-class VerticalScale(line: Float, height: Int = PICTURE_WIDTH) {
+class VerticalScale(line: Float) {
     val unitTop = MARGIN
     val highTop = unitTop + line
     val barTop = ceil(highTop + line + MARGIN).toInt()
-    val lowTop = height - MARGIN - line
+    val lowTop = PICTURE_WIDTH - MARGIN - line
     val barBottom = floor(lowTop - MARGIN).toInt()
     val midTop = (barTop + barBottom) / 2f - line / 2
 
