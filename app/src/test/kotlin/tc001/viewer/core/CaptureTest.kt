@@ -87,20 +87,34 @@ class CaptureTest {
         val r = readouts(locked = true)
         val millis = LocalDateTime.of(2026, 11, 20, 7, 5, 9, 42_000_000).toInstant(ZoneOffset.UTC).toEpochMilli()
         val s = Settings(Palette.WHITE_HOT, quarterTurns = 3, mirror = true, smoothing = 0.25f)
-        val m = parseFlat(photoJson(r, s, millis, ZoneId.of("Europe/Paris")))
+        val m = parseFlat(photoJson(r, s, 0, millis, ZoneId.of("Europe/Paris")))
         val buf = CharArray(21)
         fun c(v: Float) = String(buf, 0, formatCelsius(v, buf))
         assertEquals(
             mapOf(
                 "min" to c(r.min), "center" to c(r.centre), "max" to c(r.max), "lo" to c(r.lo), "hi" to c(r.hi),
-                "palette" to "\"white_hot\"", "rotation" to "270", "mirror" to "true", "smoothing" to "0.25", "locked" to "true",
+                "palette" to "\"white_hot\"", "rotation" to "270", "orientation" to "0", "mirror" to "true", "smoothing" to "0.25", "locked" to "true",
                 "time" to "\"2026-11-20T08:05:09.042+01:00\"",
             ),
             m,
         )
         assertTrue("one decimal", m.getValue("min").matches(Regex("""-?\d+\.\d""")))
-        assertEquals("locked comes from the frame", "false", parseFlat(photoJson(readouts(locked = false), s, millis)).getValue("locked"))
-        assertTrue("UTC offset as Z", photoJson(r, s, millis, ZoneOffset.UTC).endsWith(""""time":"2026-11-20T07:05:09.042Z"}"""))
+        assertEquals("locked comes from the frame", "false", parseFlat(photoJson(readouts(locked = false), s, 0, millis)).getValue("locked"))
+        assertTrue("UTC offset as Z", photoJson(r, s, 0, millis, ZoneOffset.UTC).endsWith(""""time":"2026-11-20T07:05:09.042Z"}"""))
+    }
+
+    @Test
+    fun photoJsonAddsThePhoneOrientationAndKeepsEveryField() { // 003-AC5
+        val r = readouts(locked = false)
+        val s = Settings(quarterTurns = 1)
+        val base = parseFlat(photoJson(r, s, 0, 0L, ZoneOffset.UTC))
+        for (phone in 0..3) {
+            val m = parseFlat(photoJson(r, s, phone, 0L, ZoneOffset.UTC))
+            assertEquals("orientation in degrees", "${phone * 90}", m.getValue("orientation"))
+            assertEquals("rotation is still the Rotate setting", "90", m.getValue("rotation"))
+            // The field list itself is pinned once, by photoJsonHoldsTheFrameReadoutsAndSettings.
+            assertEquals("every 002-AC7 field unchanged", base - "orientation", m - "orientation")
+        }
     }
 
     private class Chunk(val type: String, val data: ByteArray, val crcOk: Boolean)
@@ -143,7 +157,7 @@ class CaptureTest {
     @Test
     fun theJsonIsATextChunkRightAfterIhdrAndThePngStillDecodes() { // 002-AC7
         val (rows, png) = samplePng()
-        val json = photoJson(readouts(locked = false), Settings(), 0L, ZoneOffset.UTC)
+        val json = photoJson(readouts(locked = false), Settings(), 0, 0L, ZoneOffset.UTC)
         val out = withText(png, "tc001", json)
 
         assertArrayEquals("signature", png.copyOf(8), out.copyOf(8))
@@ -153,7 +167,7 @@ class CaptureTest {
         assertTrue("every CRC valid", list.all { it.crcOk })
         assertEquals("the original chunks, untouched", chunks(png).map { it.type to it.data.toList() }, (list - list[1]).map { it.type to it.data.toList() })
         assertEquals("tc001\u0000$json", String(list[1].data, Charsets.ISO_8859_1))
-        assertEquals("the JSON round-trips", 11, parseFlat(json).size)
+        assertEquals("the JSON round-trips", 12, parseFlat(json).size)
 
         val pixels = Inflater().run {
             setInput(list.single { it.type == "IDAT" }.data)

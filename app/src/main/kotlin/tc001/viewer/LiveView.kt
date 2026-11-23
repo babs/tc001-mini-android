@@ -2,14 +2,16 @@ package tc001.viewer
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.graphics.PixelFormat
 import android.util.AttributeSet
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 
 /**
- * Shows composed frames from the source thread. The surface buffer is the bitmap's exact size, so a
- * frame is a 1:1 copy done before the next compose starts (no tearing) and the compositor scales it.
+ * Shows composed frames from the source thread, turned back onto the portrait screen by the phone's quarter
+ * turns. The surface buffer is the turned picture's exact size, so a frame is a 1:1 copy done before the next
+ * compose starts (no tearing) and the compositor scales it.
  */
 class LiveView(context: Context, attrs: AttributeSet?) : SurfaceView(context, attrs), SurfaceHolder.Callback {
     private val lock = Any()
@@ -22,11 +24,12 @@ class LiveView(context: Context, attrs: AttributeSet?) : SurfaceView(context, at
         holder.setFormat(PixelFormat.RGBX_8888) // SurfaceView defaults to RGB_565: banded gradients
     }
 
-    /** Sizes the surface for frames of [width] x [height]; the view keeps that aspect ratio. */
-    fun fit(width: Int, height: Int) {
-        frameWidth = width
-        frameHeight = height
-        holder.setFixedSize(width, height)
+    /** UI thread: sizes the surface for [width] x [height] frames composed for a phone turned clockwise by [turns] quarters; the view keeps that aspect ratio. */
+    fun fit(width: Int, height: Int, turns: Int) {
+        val odd = turns % 2 != 0
+        frameWidth = if (odd) height else width
+        frameHeight = if (odd) width else height
+        holder.setFixedSize(frameWidth, frameHeight)
         requestLayout()
     }
 
@@ -44,11 +47,21 @@ class LiveView(context: Context, attrs: AttributeSet?) : SurfaceView(context, at
     // The lock guarantees the source thread no longer draws once this returns, as SurfaceHolder requires.
     override fun surfaceDestroyed(holder: SurfaceHolder) = synchronized(lock) { surface = null }
 
-    /** Source thread: draws [bitmap], sized as given to [fit]; dropped while there is no surface. */
-    fun show(bitmap: Bitmap) = synchronized(lock) {
+    /** Source thread: draws [bitmap], composed for a phone turned clockwise by [turns] quarters, turned back by them; dropped while there is no surface. */
+    fun show(bitmap: Bitmap, turns: Int) = synchronized(lock) {
         val holder = surface ?: return
         val canvas = holder.lockCanvas() ?: return
-        canvas.drawBitmap(bitmap, 0f, 0f, null)
+        val odd = turns % 2 != 0
+        // One frame while the buffer is resized for a new turn: centred on black, never stretched, no stale pixels.
+        if (canvas.width != (if (odd) bitmap.height else bitmap.width) || canvas.height != (if (odd) bitmap.width else bitmap.height)) {
+            canvas.drawColor(Color.BLACK)
+        }
+        canvas.save()
+        // Every size is even: the turn about the buffer centre lands on whole pixels, still a 1:1 copy.
+        canvas.translate(canvas.width / 2f, canvas.height / 2f)
+        canvas.rotate(-90f * turns)
+        canvas.drawBitmap(bitmap, -bitmap.width / 2f, -bitmap.height / 2f, null)
+        canvas.restore()
         holder.unlockCanvasAndPost(canvas)
     }
 }

@@ -12,7 +12,8 @@ Plug the camera in: the app opens on the live thermal image with a colour scale,
 - Palettes: ironbow, white-hot, black-hot. Auto range, or lock the current range.
 - Hot / cold spot markers (3x3-smoothed, with hysteresis so noise does not make them jump) and a centre crosshair.
 - Large Min / Max / Center readouts, readable at arm's length.
-- Rotation (90° steps), mirror, display smoothing. Settings are kept across launches.
+- Turn the phone sideways or upside down: the layout stays put and the picture turns to read upright, as in a camera app (follows the phone even with auto-rotate off; held from Record to Stop).
+- Rotation (90° steps, for a camera mounted another way), mirror, display smoothing. Settings are kept across launches.
 - Photo (button or either volume key): the picture as shown on screen plus the raw frame.
 - Video: H.264 MP4 of the picture, no audio.
 - Re-plugging the camera resumes the stream.
@@ -53,10 +54,10 @@ The `.bin` is the untouched 18,568-byte mode-2 frame: a 136-byte header followed
 Each photo PNG carries a `tEXt` chunk with keyword `tc001` holding the readouts and view settings as JSON:
 
 ```json
-{"min":23.4,"center":23.8,"max":24.2,"lo":23.2,"hi":24.2,"palette":"ironbow","rotation":0,"mirror":false,"smoothing":0.45,"locked":false,"time":"2026-11-20T00:48:57.328+01:00"}
+{"min":23.4,"center":23.8,"max":24.2,"lo":23.2,"hi":24.2,"palette":"ironbow","rotation":0,"orientation":90,"mirror":false,"smoothing":0.45,"locked":false,"time":"2026-11-20T00:48:57.328+01:00"}
 ```
 
-Read it with `exiftool -Tc001 photo.png`.
+`rotation` is the Rotate setting, `orientation` the phone turn the picture was drawn for (0, 90, 180, 270, clockwise from portrait); like the screen, it is held from Record to Stop, so a photo taken while recording matches the screen, not the phone. Read it with `exiftool -Tc001 photo.png`.
 
 ## Build
 

@@ -17,14 +17,14 @@ fun captureName(epochMillis: Long, zone: ZoneId = ZoneId.systemDefault()): Strin
 private val TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX")
 
 /**
- * The photo's metadata (002-AC7) as one flat JSON object: the frame's [r] readouts, the view settings [s] it
- * was drawn with, and [epochMillis] as ISO 8601 local time with its offset in [zone].
+ * The photo's metadata (002-AC7, 003-AC5) as one flat JSON object: the frame's [r] readouts, the view settings [s]
+ * and phone quarter turns [phone] it was drawn with, and [epochMillis] as ISO 8601 local time with its offset in [zone].
  */
-fun photoJson(r: Readouts, s: Settings, epochMillis: Long, zone: ZoneId = ZoneId.systemDefault()): String {
+fun photoJson(r: Readouts, s: Settings, phone: Int, epochMillis: Long, zone: ZoneId = ZoneId.systemDefault()): String {
     val out = CharArray(21)
     fun c(celsius: Float) = String(out, 0, formatCelsius(celsius, out))
     return """{"min":${c(r.min)},"center":${c(r.centre)},"max":${c(r.max)},"lo":${c(r.lo)},"hi":${c(r.hi)},""" +
-        """"palette":"${s.palette.name.lowercase()}","rotation":${s.quarterTurns * 90},"mirror":${s.mirror},""" +
+        """"palette":"${s.palette.name.lowercase()}","rotation":${s.quarterTurns * 90},"orientation":${phone * 90},"mirror":${s.mirror},""" +
         """"smoothing":${s.smoothing},"locked":${r.locked},"time":"${TIME.format(Instant.ofEpochMilli(epochMillis).atZone(zone))}"}"""
 }
 

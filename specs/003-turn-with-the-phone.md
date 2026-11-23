@@ -29,6 +29,7 @@ The app behaves like a camera app. The layout never moves: the picture stays at 
 - Tablets whose natural orientation is landscape.
 - The same field in the Linux viewer's photos.
 - System toasts (drawn by Android in its own orientation).
+- Large screens (sw >= 600 dp: tablets, foldable inner screens), where Android 16 ignores the portrait lock.
 
 ## Acceptance criteria
 
@@ -36,7 +37,7 @@ The app behaves like a camera app. The layout never moves: the picture stays at 
 - [ ] **AC2** At each orientation the picture on screen is upright for the user: the scale band runs along the user's bottom edge of the picture, its labels and the marker and centre labels read upright, the thermal scene keeps its place on the screen as in portrait, and the picture is as wide as in portrait (no shrink to a landscape height).
 - [ ] **AC3** At each orientation Min, Max and Center stay in the band under the picture (phone frame), turned to read upright, with the values fitted to the turned box as in 002-AC4 and equal to the picture's labels.
 - [ ] **AC4** The orientation changes only once the phone is within 30° of the next quarter (no flicker around 45°), within 0.5 s, and holds while the phone lies flat; the status message turns with it.
-- [ ] **AC5** A photo taken at any orientation is a 768 x 832 PNG showing exactly what the user saw, upright; its `.bin` is the untouched frame; its JSON keeps every 002-AC7 field (`rotation` is still the Rotate button setting) and adds `orientation` (0, 90, 180 or 270).
+- [ ] **AC5** A photo taken at any orientation is a 768 x 832 PNG showing exactly what the screen showed, upright (during a recording, the orientation held per AC6); its `.bin` is the untouched frame; its JSON keeps every 002-AC7 field (`rotation` is still the Rotate button setting) and adds `orientation` (0, 90, 180 or 270), the turn the picture was drawn for.
 - [ ] **AC6** A video keeps the orientation it started with until Stop (the live view holds it too while recording) and is still the 002-AC6 MP4.
 - [ ] **AC7** The Rotate button still turns the image by 90° steps at every phone orientation, and its setting survives a restart.
 

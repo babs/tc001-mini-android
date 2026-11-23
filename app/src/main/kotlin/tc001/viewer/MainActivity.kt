@@ -21,6 +21,7 @@ import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.OrientationEventListener
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
@@ -45,8 +46,11 @@ import tc001.viewer.core.VolumeKey
 import tc001.viewer.core.captureName
 import tc001.viewer.core.nextAccess
 import tc001.viewer.core.photoJson
+import tc001.viewer.core.pictureTurns
 import tc001.viewer.core.rawSnapshot
 import tc001.viewer.core.readoutBand
+import tc001.viewer.core.snapQuarter
+import tc001.viewer.core.turnToDraw
 import tc001.viewer.core.volumeKey
 
 class MainActivity : Activity() {
@@ -83,6 +87,17 @@ class MainActivity : Activity() {
     // Set on the UI thread, taken by the source thread with the next composed frame.
     @Volatile
     private var photoRequested = false
+
+    // UI thread: phone quarter turns clockwise from portrait, as the accelerometer last snapped them (003-AC4).
+    private var phone = 0
+    private lateinit var orientation: OrientationEventListener
+
+    // Set on the UI thread, read once per frame on the source thread: the phone turns the picture is drawn for.
+    @Volatile
+    private var drawn = 0
+
+    // UI thread: the turn held from Record until Stop (003-AC6), null while not recording.
+    private var held: Int? = null
 
     // UI thread: the recording asked for, from Record until Stop; a start still in flight leaves [recorder] null.
     private var recording: Any? = null
@@ -140,13 +155,25 @@ class MainActivity : Activity() {
         usb = getSystemService(UsbManager::class.java)
 
         live = findViewById(R.id.live)
-        live.fit(composer.bitmap.width, composer.bitmap.height)
+        live.fit(composer.bitmap.width, composer.bitmap.height, drawn)
         val (width, height) = composer.bitmap.run { width to height }
         thread(name = "recorder-prepare") { Recorder.prepare(contentResolver, width, height) }
         message = findViewById(R.id.message)
         // Retry after a dismissed or refused prompt without leaving the app.
         message.setOnClickListener { connect() }
+        // Posted: a layout change listener runs inside the layout pass.
+        (message.parent as View).addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> message.post(::fitMessage) }
         fps = findViewById(R.id.fps)
+        // Follows the sensor even with auto-rotate off: the layout is locked to portrait, only the content turns.
+        orientation = object : OrientationEventListener(this) {
+            override fun onOrientationChanged(angle: Int) {
+                val new = snapQuarter(angle, phone)
+                if (new == phone) return
+                phone = new
+                val t = turnToDraw(phone, held)
+                if (t != drawn) turn(t)
+            }
+        }
 
         paletteButton = findViewById(R.id.palette)
         paletteButton.setOnClickListener {
@@ -220,11 +247,13 @@ class MainActivity : Activity() {
         }
         // RECEIVER_NOT_EXPORTED is API 33; the system still delivers its USB broadcasts to a non-exported receiver.
         registerReceiver(receiver, filter, if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) RECEIVER_NOT_EXPORTED else 0)
+        orientation.enable()
         connect()
     }
 
     override fun onStop() {
         started = false
+        orientation.disable()
         unregisterReceiver(receiver)
         use(null, R.string.plug_in)
         super.onStop()
@@ -352,6 +381,21 @@ class MainActivity : Activity() {
         }
     }
 
+    /** Draws the picture and the message for a phone turned clockwise by [turns] quarters. */
+    private fun turn(turns: Int) {
+        drawn = turns
+        live.fit(composer.bitmap.width, composer.bitmap.height, turns)
+        message.rotation = -90f * turns
+        fitMessage()
+    }
+
+    /** Turned a quarter, the message wraps to its slot's height, the width it has once turned. */
+    private fun fitMessage() {
+        val slot = (message.parent as View).height
+        val width = if (drawn % 2 != 0 && slot > 0) slot else Int.MAX_VALUE
+        if (message.maxWidth != width) message.maxWidth = width
+    }
+
     private fun showFps() {
         val n = frames
         val now = SystemClock.elapsedRealtime()
@@ -436,26 +480,29 @@ class MainActivity : Activity() {
     private fun onFrame(frame: ByteArray) {
         frames++
         val s = settings
+        // The recorder is published after the turn freezes: read first, its frames always carry the frozen turn.
+        val rec = recorder
+        val turns = drawn
         if (!processor.process(frame, s.smoothing)) return
         val p = processor
         synchronized(readouts) {
             readouts.fill(p)
             filled = true
         }
-        val view = composer.compose(p.shown, readouts, s.palette, s.smoothing, p.spots, s.quarterTurns, s.mirror)
-        live.show(view)
-        recorder?.draw(view)
+        val view = composer.compose(p.shown, readouts, s.palette, s.smoothing, p.spots, pictureTurns(s.quarterTurns, s.mirror, turns), s.mirror)
+        live.show(view, turns)
+        rec?.draw(view)
         if (photoRequested) {
             photoRequested = false
-            takePhoto(view, frame, s)
+            takePhoto(view, frame, s, turns)
         }
     }
 
-    /** Source thread: snapshots [view], [frame] (both reused by the next frame) and its readouts drawn with [s], saved on a thread of their own. */
-    private fun takePhoto(view: Bitmap, frame: ByteArray, s: Settings) {
+    /** Source thread: snapshots [view], [frame] (both reused by the next frame) and its readouts drawn with [s] for [turns], saved on a thread of their own. */
+    private fun takePhoto(view: Bitmap, frame: ByteArray, s: Settings, turns: Int) {
         val now = System.currentTimeMillis()
         val name = captureName(now)
-        val json = photoJson(readouts, s, now)
+        val json = photoJson(readouts, s, turns, now)
         val png = view.copy(Bitmap.Config.ARGB_8888, false)
         val raw = rawSnapshot(frame)
         if (png == null) return runOnUiThread { toast(getString(R.string.photo_failed)) }
@@ -470,6 +517,7 @@ class MainActivity : Activity() {
         val pressedAt = SystemClock.elapsedRealtime()
         val token = Any()
         recording = token
+        held = drawn
         showRecording()
         val name = captureName(System.currentTimeMillis())
         val (width, height) = composer.bitmap.run { width to height }
@@ -485,7 +533,7 @@ class MainActivity : Activity() {
                 when {
                     recording !== token -> new?.finish() // stopped, backgrounded or source switched meanwhile
                     new == null -> {
-                        recording = null
+                        stopRecording()
                         toast(getString(R.string.video_failed))
                     }
                     else -> recorder = new
@@ -501,6 +549,10 @@ class MainActivity : Activity() {
         recorder?.finish()
         recorder = null
         showRecording()
+        held = null
+        // After finish(): no frame drawn for the new turn reaches the file.
+        val t = turnToDraw(phone, held)
+        if (t != drawn) turn(t)
     }
 
     private fun showRecording() {
