@@ -27,12 +27,12 @@ The thermal image fills the width of the screen, at the top. Under it, a horizon
 
 ## Acceptance criteria
 
-- [x] **AC1** The composed picture is 768 x 832 (both multiples of 16): the 768 x 768 thermal image on top, below it a horizontal scale whose left end is the coldest palette colour and right end the hottest, labelled with the colour range's low / middle / high values; no readout line; the cold marker is cyan, the hot marker pink-red, the centre badge white; photo PNGs and video frames are this picture.
+- [x] **AC1** (sideways layout and size superseded by 003-AC8/AC9/AC10) The composed picture is 768 x 832 (both multiples of 16): the 768 x 768 thermal image on top, below it a horizontal scale whose left end is the coldest palette colour and right end the hottest, labelled with the colour range's low / middle / high values; no readout line; the cold marker is cyan, the hot marker pink-red, the centre badge white; photo PNGs and video frames are this picture.
 - [x] **AC2** With "lock range" on, the horizontal scale's labels and colours stop following the scene (spec 001 AC3 in the new layout).
 - [x] **AC3** Center is the mean of the raw 2x2 centre pixels; Max and Min are the hot and cold marker values; all one decimal; for a given frame the large native readouts show the same numbers as the picture's cold marker, centre badge and hot marker labels.
 - [x] **AC4** While a source runs, the app shows, outside the composed picture, Min (left) and Max (right) side by side in the same large type, and Center below them across the full width in a larger type, each with a small label above; the band below the picture is sized for 56 sp values, values grow to fill it (up to about 110 sp for Min/Max, 140 sp for Center) and shrink below that only when a wide value would not fit a narrow screen (down to 32 sp) or the band is capped (split screen, landscape, large font scale); updated about 5 times per second; absent from photos and videos and hidden when no source runs.
 - [x] **AC5** While a source runs, pressing volume up or volume down takes exactly one photo (holding the key does not take more) and leaves the volume unchanged; with no source the keys change the volume as usual.
-- [x] **AC6** Recording still produces a playable H.264 MP4 at 768 x 832, about 25 fps, duration matching the recording ± 1 s.
+- [x] **AC6** (sideways size superseded by 003-AC10) Recording still produces a playable H.264 MP4 at 768 x 832, about 25 fps, duration matching the recording ± 1 s.
 - [x] **AC7** Each photo PNG carries a `tEXt` chunk with keyword `tc001` holding one JSON object: `min`, `center`, `max`, `lo`, `hi` (°C, one decimal), `palette`, `rotation`, `mirror`, `smoothing`, `locked`, `time` (ISO 8601); the PNG still decodes as before and `pngcheck`/`exiftool` shows the chunk.
 
 ## Phases

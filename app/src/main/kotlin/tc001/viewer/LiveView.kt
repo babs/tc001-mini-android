@@ -7,7 +7,7 @@ import android.graphics.PixelFormat
 import android.util.AttributeSet
 import android.view.SurfaceHolder
 import android.view.SurfaceView
-import tc001.viewer.core.turnedBox
+import tc001.viewer.core.pictureSize
 
 /**
  * Shows composed frames from the source thread, turned back onto the portrait screen by the phone's quarter
@@ -17,21 +17,14 @@ import tc001.viewer.core.turnedBox
 class LiveView(context: Context, attrs: AttributeSet?) : SurfaceView(context, attrs), SurfaceHolder.Callback {
     private val lock = Any()
     private var surface: SurfaceHolder? = null
-    private var frameWidth = 1
-    private var frameHeight = 1
+    // Turned back onto the portrait screen, the picture of every turn fills the upright one's box (003-AC8): one size.
+    private val frameWidth = pictureSize(0).first
+    private val frameHeight = pictureSize(0).second
 
     init {
         holder.addCallback(this)
         holder.setFormat(PixelFormat.RGBX_8888) // SurfaceView defaults to RGB_565: banded gradients
-    }
-
-    /** UI thread: sizes the surface for [width] x [height] frames composed for a phone turned clockwise by [turns] quarters; the view keeps that aspect ratio. */
-    fun fit(width: Int, height: Int, turns: Int) {
-        val (w, h) = turnedBox(width, height, turns)
-        frameWidth = w
-        frameHeight = h
         holder.setFixedSize(frameWidth, frameHeight)
-        requestLayout()
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -52,11 +45,8 @@ class LiveView(context: Context, attrs: AttributeSet?) : SurfaceView(context, at
     fun show(bitmap: Bitmap, turns: Int) = synchronized(lock) {
         val holder = surface ?: return
         val canvas = holder.lockCanvas() ?: return
-        val odd = turns % 2 != 0
-        // One frame while the buffer is resized for a new turn: centred on black, never stretched, no stale pixels.
-        if (canvas.width != (if (odd) bitmap.height else bitmap.width) || canvas.height != (if (odd) bitmap.width else bitmap.height)) {
-            canvas.drawColor(Color.BLACK)
-        }
+        // A buffer not at the fixed size yet (a first frame before it applies): centred on black, never stretched.
+        if (canvas.width != frameWidth || canvas.height != frameHeight) canvas.drawColor(Color.BLACK)
         canvas.save()
         // Every size is even: the turn about the buffer centre lands on whole pixels, still a 1:1 copy.
         canvas.translate(canvas.width / 2f, canvas.height / 2f)

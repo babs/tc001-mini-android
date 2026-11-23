@@ -6,28 +6,32 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Typeface
+import tc001.viewer.core.BAND
 import tc001.viewer.core.BAR_MARGIN
 import tc001.viewer.core.BAR_WIDTH
 import tc001.viewer.core.CENTRE_COLOR
 import tc001.viewer.core.COLD_COLOR
 import tc001.viewer.core.Extremes
 import tc001.viewer.core.HOT_COLOR
-import tc001.viewer.core.PICTURE_HEIGHT
-import tc001.viewer.core.PICTURE_WIDTH
 import tc001.viewer.core.Palette
 import tc001.viewer.core.Readouts
 import tc001.viewer.core.Renderer
 import tc001.viewer.core.SCALE
 import tc001.viewer.core.SIZE
+import tc001.viewer.core.VerticalScale
+import tc001.viewer.core.bandLeft
 import tc001.viewer.core.formatCelsius
 import tc001.viewer.core.orient
 import tc001.viewer.core.orientedIndex
+import tc001.viewer.core.pictureSize
 import tc001.viewer.core.scaleBar
+import tc001.viewer.core.scaleColumn
+import tc001.viewer.core.thermalLeft
 
 /**
  * Composes the whole view (thermal image, crosshair, spot markers, centre badge, then a band with the
- * horizontal scale bar and its labels) into one Bitmap, so the screen, the photo PNG and the
- * video frames are the same pixels.
+ * scale bar and its labels: below and horizontal upright, beside and vertical sideways) into one Bitmap,
+ * so the screen, the photo PNG and the video frames are the same pixels.
  */
 class FrameComposer {
     private val scale = SCALE
@@ -43,8 +47,12 @@ class FrameComposer {
     private val half = 3 * scale
     private val label = CharArray(21)
 
-    val bitmap: Bitmap = Bitmap.createBitmap(PICTURE_WIDTH, PICTURE_HEIGHT, Bitmap.Config.ARGB_8888)
-    private val canvas = Canvas(bitmap)
+    // One bitmap per layout, made once: a photo copy or a recorder draw never sees one resized.
+    private val upright = pictureSize(0).let { (w, h) -> Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888) }
+    private val sideways = pictureSize(1).let { (w, h) -> Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888) }
+    private val uprightCanvas = Canvas(upright)
+    private val sidewaysCanvas = Canvas(sideways)
+    private var canvas = uprightCanvas
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = maxOf(1f, 2 * scale / 3f)
@@ -68,13 +76,16 @@ class FrameComposer {
     private val labels = Paint(text).apply { color = Color.WHITE }
     private val unitWidth = labels.measureText(UNIT)
     private val labelBaseline = barTop + barHeight - fm.ascent + scale / 4f
+    private val vertical = VerticalScale(fm.descent - fm.ascent)
+    private val column = IntArray(barHeight * (vertical.barBottom - vertical.barTop))
+    private var columnPalette: Palette? = null
     private val backdrop = Paint().apply { color = 0xC0000000.toInt() }
     private val panel = Paint().apply { color = Color.rgb(24, 24, 24) }
 
     /**
      * Draws celsius plane [t] in colour range [r] lo..hi, turned clockwise by [quarterTurns] x 90 degrees
-     * and [mirror]ed, with the [spots] tracked on the raw plane and every number from [r], and returns
-     * [bitmap], reused across calls.
+     * and [mirror]ed, with the [spots] tracked on the raw plane and every number from [r], laid out for a phone
+     * turned by [phone] quarters, and returns that layout's bitmap ([pictureSize]), reused across calls.
      */
     fun compose(
         t: FloatArray,
@@ -84,10 +95,16 @@ class FrameComposer {
         spots: Extremes?,
         quarterTurns: Int,
         mirror: Boolean,
+        phone: Int,
     ): Bitmap {
+        val bitmap = if (phone % 2 != 0) sideways else upright
+        canvas = if (phone % 2 != 0) sidewaysCanvas else uprightCanvas
+        val left = thermalLeft(phone)
         orient(t, quarterTurns, mirror, oriented)
-        bitmap.setPixels(renderer.render(oriented, r.lo, r.hi, palette, strength), 0, side, 0, 0, side, side)
+        bitmap.setPixels(renderer.render(oriented, r.lo, r.hi, palette, strength), 0, side, left, 0, side, side)
 
+        canvas.save()
+        canvas.translate(left.toFloat(), 0f)
         val c = side / 2f
         stroke.color = Color.WHITE
         canvas.drawPath(haloCross, halo)
@@ -98,6 +115,11 @@ class FrameComposer {
         if (tracked != null) {
             marker(orientedIndex(tracked.hotRow, tracked.hotCol, quarterTurns, mirror), r.max, HOT_COLOR)
             marker(orientedIndex(tracked.coldRow, tracked.coldCol, quarterTurns, mirror), r.min, COLD_COLOR)
+        }
+        canvas.restore()
+        if (bitmap === sideways) {
+            verticalScale(bitmap, bandLeft(phone), r, palette)
+            return bitmap
         }
 
         canvas.drawRect(0f, side.toFloat(), bitmap.width.toFloat(), bitmap.height.toFloat(), panel)
@@ -114,6 +136,28 @@ class FrameComposer {
         labels.textAlign = Paint.Align.LEFT
         canvas.drawText(UNIT, right - unitWidth, labelBaseline, labels)
         return bitmap
+    }
+
+    /** The sideways band at [bandLeft]: the bar with hot at the top, the labels centred across the band (003-AC9). */
+    private fun verticalScale(bitmap: Bitmap, bandLeft: Int, r: Readouts, palette: Palette) {
+        canvas.drawRect(bandLeft.toFloat(), 0f, (bandLeft + BAND).toFloat(), side.toFloat(), panel)
+        val length = vertical.barBottom - vertical.barTop
+        if (palette != columnPalette) {
+            val colours = scaleColumn(palette, length)
+            for (y in 0 until length) column.fill(colours[y], y * barHeight, (y + 1) * barHeight)
+            columnPalette = palette
+        }
+        bitmap.setPixels(column, 0, barHeight, bandLeft + (BAND - barHeight) / 2, vertical.barTop, barHeight, length)
+        val x = bandLeft + BAND / 2f
+        labels.textAlign = Paint.Align.CENTER
+        canvas.drawText(UNIT, x, vertical.unitTop - fm.ascent, labels)
+        canvas.drawText(label, 0, formatCelsius(r.hi, label), x, vertical.highTop - fm.ascent, labels)
+        canvas.drawText(label, 0, formatCelsius(r.lo, label), x, vertical.lowTop - fm.ascent, labels)
+        // Over the bar, on a backdrop: the band has no room beside it.
+        val n = formatCelsius(r.mid, label)
+        val w = minOf(labels.measureText(label, 0, n) + scale / 2f, BAND.toFloat())
+        canvas.drawRect(x - w / 2, vertical.midTop, x + w / 2, vertical.midTop + fm.descent - fm.ascent, backdrop)
+        canvas.drawText(label, 0, n, x, vertical.midTop - fm.ascent, labels)
     }
 
     private fun cross(ext: Float) = Path().apply {

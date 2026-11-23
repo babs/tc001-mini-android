@@ -19,6 +19,15 @@ fun snapQuarter(angle: Int, current: Int): Int {
 /** The box a [width] x [height] area shows a user whose phone is turned by [turns] quarters (003-AC2, 003-AC3). */
 fun turnedBox(width: Int, height: Int, turns: Int) = if (turns % 2 != 0) height to width else width to height
 
+/** The composed picture's width and height for a phone turned by [turns] quarters: the scale band below upright, beside sideways (003-AC10). */
+fun pictureSize(turns: Int) = turnedBox(PICTURE_WIDTH, PICTURE_HEIGHT, turns)
+
+/** Left edge of the thermal image in the picture for [turns]: at 90° the band is on the user's left, the phone's portrait bottom edge (003-AC8). */
+fun thermalLeft(turns: Int) = if (turns.mod(4) == 1) BAND else 0
+
+/** Left edge of the sideways scale band in the picture for [turns]: beside the thermal image, on the phone's portrait bottom edge (003-AC8). */
+fun bandLeft(turns: Int) = if (turns.mod(4) == 1) 0 else PICTURE_WIDTH
+
 /** The phone turns to draw for: [held] from Record to Stop (003-AC6), else the [phone]'s. */
 fun turnToDraw(phone: Int, held: Int?) = held ?: phone
 

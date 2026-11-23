@@ -50,6 +50,7 @@ import tc001.viewer.core.PAIR_MAX_SP
 import tc001.viewer.core.nextAccess
 import tc001.viewer.core.pairTextSize
 import tc001.viewer.core.photoJson
+import tc001.viewer.core.pictureSize
 import tc001.viewer.core.pictureTurns
 import tc001.viewer.core.rawSnapshot
 import tc001.viewer.core.readoutBand
@@ -165,8 +166,8 @@ class MainActivity : Activity() {
         usb = getSystemService(UsbManager::class.java)
 
         live = findViewById(R.id.live)
-        live.fit(composer.bitmap.width, composer.bitmap.height, drawn)
-        val (width, height) = composer.bitmap.run { width to height }
+        // Upright size only: a sideways start falls back to the full encoder search if the prepared one refuses it.
+        val (width, height) = pictureSize(0)
         thread(name = "recorder-prepare") { Recorder.prepare(contentResolver, width, height) }
         message = findViewById(R.id.message)
         // Retry after a dismissed or refused prompt without leaving the app.
@@ -401,7 +402,6 @@ class MainActivity : Activity() {
     /** Draws the picture and the message for a phone turned clockwise by [turns] quarters. */
     private fun turn(turns: Int) {
         drawn = turns
-        live.fit(composer.bitmap.width, composer.bitmap.height, turns)
         message.rotation = -90f * turns
         fitMessage()
         layoutReadouts()
@@ -558,7 +558,7 @@ class MainActivity : Activity() {
             readouts.fill(p)
             filled = true
         }
-        val view = composer.compose(p.shown, readouts, s.palette, s.smoothing, p.spots, pictureTurns(s.quarterTurns, s.mirror, turns), s.mirror)
+        val view = composer.compose(p.shown, readouts, s.palette, s.smoothing, p.spots, pictureTurns(s.quarterTurns, s.mirror, turns), s.mirror, turns)
         live.show(view, turns)
         rec?.draw(view)
         if (photoRequested) {
@@ -588,7 +588,8 @@ class MainActivity : Activity() {
         recording = token
         showRecording()
         val name = captureName(System.currentTimeMillis())
-        val (width, height) = composer.bitmap.run { width to height }
+        // The turn is held from here to Stop (003-AC6), so every frame of the file has this size (003-AC10).
+        val (width, height) = pictureSize(token.held)
         thread(name = "recorder-start") {
             val new = Recorder.start(contentResolver, name, width, height, pressedAt) { saved ->
                 runOnUiThread {

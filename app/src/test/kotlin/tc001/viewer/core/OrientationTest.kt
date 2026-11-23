@@ -92,6 +92,60 @@ class OrientationTest {
     }
 
     @Test
+    fun thePictureIsUprightOrSidewaysSized() { // 003-AC10, 003-AC11
+        for (turns in listOf(0, 2)) assertEquals("turns $turns: as before", 768 to 832, pictureSize(turns))
+        for (turns in listOf(1, 3)) assertEquals("turns $turns: band beside", 832 to 768, pictureSize(turns))
+        for (turns in 0..3) pictureSize(turns).let { (w, h) -> assertTrue("H.264 needs multiples of 16", w % 16 == 0 && h % 16 == 0) }
+    }
+
+    @Test
+    fun sidewaysTheThermalImageKeepsItsPortraitPlaceAndTheBandLandsAtTheBottom() { // 003-AC8
+        // The live view turns the picture back by -90 x turns about the centres: picture (x, y) to screen.
+        fun toScreen(x: Float, y: Float, turns: Int): Pair<Float, Float> {
+            val (w, h) = pictureSize(turns)
+            return if (turns == 1) y to w - x else h - y to x
+        }
+        val side = SIZE * SCALE
+        for (turns in listOf(1, 3)) {
+            val left = thermalLeft(turns)
+            val bandCentre = bandLeft(turns) + BAND / 2f
+            assertTrue("turns $turns: band and thermal image side by side", bandLeft(turns) + BAND == left || left + side == bandLeft(turns))
+            assertEquals("turns $turns: the band is on the portrait bottom edge", PICTURE_HEIGHT - BAND / 2f, toScreen(bandCentre, side / 2f, turns).second, 0f)
+            // The thermal image's corners land on the portrait thermal square, 0..side on both axes.
+            for ((x, y) in listOf(0f to 0f, side.toFloat() to side.toFloat())) {
+                val (sx, sy) = toScreen(left + x, y, turns)
+                assertTrue("turns $turns: ($x, $y) on screen at ($sx, $sy)", sx in 0f..side.toFloat() && sy in 0f..side.toFloat())
+            }
+        }
+        assertEquals("upright the thermal image stays at the left edge", 0, thermalLeft(0))
+        assertEquals(0, thermalLeft(2))
+    }
+
+    @Test
+    fun theVerticalScaleIsHotAtTheTopAndColdAtTheBottom() { // 003-AC9
+        for (palette in Palette.entries) {
+            val column = scaleColumn(palette, 680)
+            assertEquals("$palette: hottest colour at the top", palette.lut[255], column.first())
+            assertEquals("$palette: coldest colour at the bottom", palette.lut[0], column.last())
+            assertArrayEquals("same colours as the horizontal bar, cold end down", scaleBar(palette, 680).reversedArray(), column)
+        }
+    }
+
+    @Test
+    fun theVerticalScaleRowsFitTheBandWithoutOverlap() { // 003-AC9
+        val line = 23.4f // the 20 px monospace label's line height
+        val v = VerticalScale(line)
+        val height = SIZE * SCALE
+        assertTrue("unit row inside the band", v.unitTop >= 0f)
+        assertTrue("high label below the unit", v.highTop >= v.unitTop + line)
+        assertTrue("bar below the high label", v.barTop >= v.highTop + line)
+        assertTrue("low label below the bar", v.lowTop >= v.barBottom)
+        assertTrue("low label inside the band", v.lowTop + line <= height)
+        assertEquals("middle label centred on the bar", (v.barTop + v.barBottom) / 2f, v.midTop + line / 2, 1e-3f)
+        assertTrue("the bar keeps most of the band", v.barBottom - v.barTop > height * 0.8f)
+    }
+
+    @Test
     fun theActivityIsLockedToPortraitAndHandlesTurnsItself() { // 003-AC1
         // Unit tests run from the module dir; the fallback covers a run from the project root.
         val manifest = listOf("src/main/AndroidManifest.xml", "app/src/main/AndroidManifest.xml").map(::File).first { it.isFile }

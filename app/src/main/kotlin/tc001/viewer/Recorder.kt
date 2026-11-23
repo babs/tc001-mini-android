@@ -28,8 +28,8 @@ class Recorder private constructor(
     private val muxer: MediaMuxer,
     private val codec: MediaCodec,
     private val surface: Surface,
-    width: Int,
-    height: Int,
+    private val width: Int,
+    private val height: Int,
     private val done: (Boolean) -> Unit,
 ) {
     private class Frame(width: Int, height: Int) {
@@ -49,8 +49,17 @@ class Recorder private constructor(
         Thread(::drain, "recorder-drain").start()
     }
 
+    // Source thread only.
+    private var dropped = false
+
     /** Source thread: copies [view], sized as given to [start]; the encoder stamps it with the time it is queued. */
     fun draw(view: Bitmap) {
+        // A frame of another layout would be drawn cropped into the file: dropped instead.
+        if (view.width != width || view.height != height) {
+            if (!dropped) Log.w(UsbSource.TAG, "recorder: dropped a ${view.width} x ${view.height} frame, recording $width x $height")
+            dropped = true
+            return
+        }
         frames.put(view)
     }
 

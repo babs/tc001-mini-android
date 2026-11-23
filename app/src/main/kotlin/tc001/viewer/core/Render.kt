@@ -1,6 +1,8 @@
 package tc001.viewer.core
 
 import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.floor
 
 /** [hi] raised so that [lo]..hi is never narrower than 0.1 C (flat scene). */
 fun spanHi(lo: Float, hi: Float) = maxOf(hi, lo + 0.1f)
@@ -10,7 +12,7 @@ const val SCALE = 8
 
 /** Composed picture: the SIZE x SIZE image at [SCALE] over a band (scale bar and its labels); both multiples of 16 for the H.264 encoder. */
 const val PICTURE_WIDTH = SIZE * SCALE
-private const val BAND = 8 * SCALE
+const val BAND = 8 * SCALE
 const val PICTURE_HEIGHT = PICTURE_WIDTH + BAND
 
 /** Horizontal scale bar under the image: [BAR_MARGIN] from either side. */
@@ -20,6 +22,27 @@ const val BAR_WIDTH = PICTURE_WIDTH - 2 * BAR_MARGIN
 /** Scale-bar row of [width] pixels, cold (bottom of the LUT) at index 0, hot at the end. */
 fun scaleBar(palette: Palette, width: Int) =
     IntArray(width) { palette.lut[(it / (width - 1f) * 255f).toInt()] }
+
+/** Vertical scale bar of [height] pixels, top to bottom: hot at index 0, cold at the end (003-AC9). */
+fun scaleColumn(palette: Palette, height: Int) = scaleBar(palette, height).apply { reverse() }
+
+/**
+ * Rows of the sideways scale band (003-AC9), top to bottom, for text [line] px tall in a [height] px band: the
+ * °C unit, the high label, the bar, the low label; the middle label is centred on the bar. The band is only
+ * [BAND] px wide, too narrow for a label beside the bar.
+ */
+class VerticalScale(line: Float, height: Int = PICTURE_WIDTH) {
+    val unitTop = MARGIN
+    val highTop = unitTop + line
+    val barTop = ceil(highTop + line + MARGIN).toInt()
+    val lowTop = height - MARGIN - line
+    val barBottom = floor(lowTop - MARGIN).toInt()
+    val midTop = (barTop + barBottom) / 2f - line / 2
+
+    private companion object {
+        const val MARGIN = SCALE / 2f
+    }
+}
 
 /**
  * Displayed index of raw pixel ([row], [col]) once the plane is turned clockwise by [quarterTurns] x

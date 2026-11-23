@@ -12,10 +12,10 @@ Plug the camera in: the app opens on the live thermal image with a colour scale,
 - Palettes: ironbow, white-hot, black-hot. Auto range, or lock the current range.
 - Hot / cold spot markers (3x3-smoothed, with hysteresis so noise does not make them jump) and a centre crosshair.
 - Large Min / Max / Center readouts, readable at arm's length.
-- Turn the phone sideways or upside down: the layout stays put and the picture and readouts turn to read upright (sideways, Min, Max and Center stack), as in a camera app (follows the phone even with auto-rotate off; held from Record to Stop).
+- Turn the phone sideways or upside down: the layout stays put and the picture and readouts turn to read upright (sideways, the scale moves beside the image and Min, Max and Center stack), as in a camera app (follows the phone even with auto-rotate off; held from Record to Stop).
 - Rotation (90° steps, for a camera mounted another way), mirror, display smoothing. Settings are kept across launches.
-- Photo (button or either volume key): the picture as shown on screen plus the raw frame.
-- Video: H.264 MP4 of the picture, no audio.
+- Photo (button or either volume key): the picture as shown on screen (768 x 832 upright, 832 x 768 sideways) plus the raw frame.
+- Video: H.264 MP4 of the picture, same sizes, no audio; the size is held from Record to Stop.
 - Re-plugging the camera resumes the stream.
 
 ## Install
