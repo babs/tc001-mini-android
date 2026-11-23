@@ -1,6 +1,6 @@
 # 003 — Picture and readouts turn with the phone
 
-**Status**: in progress
+**Status**: shipped
 **Requested by**: babs
 **Date**: 2026-11-23
 
@@ -38,16 +38,16 @@ The app behaves like a camera app. The layout never moves: the picture stays at 
 ## Acceptance criteria
 
 - [x] **AC1** Turning the phone never relays the app out: the picture, the readout band and the buttons keep their places on the screen at 0°, 90°, 180° and 270°.
-- [ ] **AC2** At each orientation the picture on screen is upright for the user: the scale band runs along the user's bottom edge of the picture upright and beside it sideways (AC8), its labels and the marker and centre labels read upright, the thermal scene keeps its orientation on the screen as in portrait (its place too at 90° and 270°, AC8; at 180° the thermal image is shifted by the band height, kept as is by AC11), and the picture is as wide as in portrait (no shrink to a landscape height).
+- [x] **AC2** At each orientation the picture on screen is upright for the user: the scale band runs along the user's bottom edge of the picture upright and beside it sideways (AC8), its labels and the marker and centre labels read upright, the thermal scene keeps its orientation on the screen as in portrait (its place too at 90° and 270°, AC8; at 180° the thermal image is shifted by the band height, kept as is by AC11), and the picture is as wide as in portrait (no shrink to a landscape height).
 - [x] **AC3** At each orientation Min, Max and Center stay in the band under the picture (phone frame), turned to read upright (sideways, Min over Max over Center), with the values fitted to the turned box as in 002-AC4 and equal to the picture's labels.
 - [x] **AC4** The orientation changes only once the phone is within 30° of the next quarter (no flicker around 45°), within 0.5 s, and holds while the phone lies flat; the status message turns with it.
-- [ ] **AC5** A photo taken at any orientation is a PNG (size per AC10) showing exactly what the screen showed, upright (during a recording, the orientation held per AC6); its `.bin` is the untouched frame; its JSON keeps every 002-AC7 field (`rotation` is still the Rotate button setting) and adds `orientation` (0, 90, 180 or 270), the turn the picture was drawn for.
+- [x] **AC5** A photo taken at any orientation is a PNG (size per AC10) showing exactly what the screen showed, upright (during a recording, the orientation held per AC6); its `.bin` is the untouched frame; its JSON keeps every 002-AC7 field (`rotation` is still the Rotate button setting) and adds `orientation` (0, 90, 180 or 270), the turn the picture was drawn for.
 - [x] **AC6** A video keeps the orientation it started with until Stop (the live view holds it too while recording) and is the 002-AC6 MP4, sized per AC10.
 - [x] **AC7** The Rotate button still turns the image by 90° steps at every phone orientation, and its setting survives a restart.
-- [ ] **AC8** At 90° and 270° the thermal image on screen is the same size and place as at 0° (full width), and the scale is beside it, on the side of the phone's portrait bottom edge.
-- [ ] **AC9** At 90° and 270° the scale reads upright for the user: coldest colour at the bottom, hottest at the top, low / middle / high labels with °C matching the colour range (002-AC1 / 002-AC2 rules, locked range included).
-- [ ] **AC10** Captures are the picture as drawn for the orientation held at capture: 768 x 832 with the horizontal scale below at 0° and 180°, 832 x 768 with the vertical scale beside the image at 90° and 270°, for photo PNGs and H.264 MP4s (~25 fps, duration within 1 s); a recording keeps its size until Stop even if the phone turns. This supersedes the fixed 768 x 832 of 002-AC1 / 002-AC6 for sideways captures; the `tc001` JSON fields do not change (`orientation` and the PNG size tell the layout).
-- [ ] **AC11** At 0° and 180° the picture, the screen and the captures are exactly as before this phase.
+- [x] **AC8** At 90° and 270° the thermal image on screen is the same size and place as at 0° (full width), and the scale is beside it, on the side of the phone's portrait bottom edge.
+- [x] **AC9** At 90° and 270° the scale reads upright for the user: coldest colour at the bottom, hottest at the top, low / middle / high labels with °C matching the colour range (002-AC1 / 002-AC2 rules, locked range included).
+- [x] **AC10** Captures are the picture as drawn for the orientation held at capture: 768 x 832 with the horizontal scale below at 0° and 180°, 832 x 768 with the vertical scale beside the image at 90° and 270°, for photo PNGs and H.264 MP4s (~25 fps, duration within 1 s); a recording keeps its size until Stop even if the phone turns. This supersedes the fixed 768 x 832 of 002-AC1 / 002-AC6 for sideways captures; the `tc001` JSON fields do not change (`orientation` and the PNG size tell the layout).
+- [x] **AC11** At 0° and 180° the picture, the screen and the captures are exactly as before this phase.
 
 ## Phases
 
