@@ -47,7 +47,7 @@ class OrientationTest {
     }
 
     @Test
-    fun aRecordingHoldsItsTurnWhateverThePhoneDoes() { // 003-AC6
+    fun aRecordingHoldsItsTurnWhateverThePhoneDoes() { // 003-AC6, 004-AC5 (the requested screen orientation follows this held turn)
         for (held in 0..3) for (phone in 0..3) assertEquals("held $held, phone $phone", held, turnToDraw(phone, held))
         for (phone in 0..3) assertEquals("not recording follows the phone", phone, turnToDraw(phone, null))
     }
@@ -109,7 +109,7 @@ class OrientationTest {
     }
 
     @Test
-    fun thePictureIsUprightOrSidewaysSized() { // 003-AC10, 003-AC11
+    fun thePictureIsUprightOrSidewaysSized() { // 003-AC10, 003-AC11, 004-AC3
         for (turns in listOf(0, 2)) assertEquals("turns $turns: as before", 768 to 832, pictureSize(turns))
         for (turns in listOf(1, 3)) assertEquals("turns $turns: band beside", 832 to 768, pictureSize(turns))
         for (turns in 0..3) pictureSize(turns).let { (w, h) -> assertTrue("H.264 needs multiples of 16", w % 16 == 0 && h % 16 == 0) }

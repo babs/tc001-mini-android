@@ -104,7 +104,7 @@ class CaptureTest {
     }
 
     @Test
-    fun photoJsonAddsThePhoneOrientationAndKeepsEveryField() { // 003-AC5
+    fun photoJsonAddsThePhoneOrientationAndKeepsEveryField() { // 003-AC5, 004-AC3
         val r = readouts(locked = false)
         val s = Settings(quarterTurns = 1)
         val base = parseFlat(photoJson(r, s, 0, 0L, ZoneOffset.UTC))

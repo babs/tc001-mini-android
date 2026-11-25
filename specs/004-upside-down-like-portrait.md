@@ -1,6 +1,6 @@
 # 004 — Upside down, the whole app turns like portrait
 
-**Status**: in progress
+**Status**: shipped
 **Requested by**: babs
 **Date**: 2026-11-25
 
@@ -28,12 +28,12 @@ Upside down, the app turns as a whole, like a normal app in reversed portrait: t
 
 ## Acceptance criteria
 
-- [ ] **AC1** With the phone upside down, the picture is at the user's top (the USB port side), the readouts under it, the buttons and the smoothing slider at the bottom, and every text (picture labels, readouts, buttons, status message) reads upright; the thermal scene is upright.
-- [ ] **AC2** At 0°, 90° and 270° the screen, the picture, the readouts and the captures are as in spec 003.
-- [ ] **AC3** A photo taken upside down is the 768 x 832 picture as the screen showed it, upright, with `orientation` 180; a video started upside down is a 768 x 832 H.264 MP4.
-- [ ] **AC4** The app goes to and from upside down also when Android's auto-rotate is off, as it turns at 90° and 270° (spec 003 decision).
-- [ ] **AC5** While recording, turning the phone does not flip the screen nor the picture; the screen catches up after Stop.
-- [ ] **AC6** Whenever there is no reading (no source running, or a source before its first frame), the readout band shows Min, Max and Center with `‒‒.‒` in place of each value, at every orientation; the values replace the placeholders from the first readout refresh after the first frame (002-AC4 rate, about 5 per second). With no source running, the status message shows over the picture area, as before.
+- [x] **AC1** With the phone upside down, the picture is at the user's top (the USB port side), the readouts under it, the buttons and the smoothing slider at the bottom, and every text (picture labels, readouts, buttons, status message) reads upright; the thermal scene is upright.
+- [x] **AC2** At 0°, 90° and 270° the screen, the picture, the readouts and the captures are as in spec 003.
+- [x] **AC3** A photo taken upside down is the 768 x 832 picture as the screen showed it, upright, with `orientation` 180; a video started upside down is a 768 x 832 H.264 MP4.
+- [x] **AC4** The app goes to and from upside down also when Android's auto-rotate is off, as it turns at 90° and 270° (spec 003 decision).
+- [x] **AC5** While recording, turning the phone does not flip the screen nor the picture; the screen catches up after Stop.
+- [x] **AC6** Whenever there is no reading (no source running, or a source before its first frame), the readout band shows Min, Max and Center with `‒‒.‒` in place of each value, at every orientation; the values replace the placeholders from the first readout refresh after the first frame (002-AC4 rate, about 5 per second). With no source running, the status message shows over the picture area, as before.
 
 ## Phases
 
