@@ -47,7 +47,7 @@ class OrientationTest {
     }
 
     @Test
-    fun aRecordingHoldsItsTurnWhateverThePhoneDoes() { // 003-AC6, 004-AC5 (the requested screen orientation follows this held turn)
+    fun aRecordingHoldsItsTurnWhateverThePhoneDoes() { // 003-AC6, 004-AC5: the drawn turn holds while recording
         for (held in 0..3) for (phone in 0..3) assertEquals("held $held, phone $phone", held, turnToDraw(phone, held))
         for (phone in 0..3) assertEquals("not recording follows the phone", phone, turnToDraw(phone, null))
     }
