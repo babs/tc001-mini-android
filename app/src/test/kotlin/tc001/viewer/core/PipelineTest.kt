@@ -169,6 +169,11 @@ class PipelineTest {
     }
 
     @Test
+    fun withoutAReadingTheValueIsFigureDashes() { // 004-AC6
+        assertEquals("\u2012\u2012.\u2012", NO_READING)
+    }
+
+    @Test
     fun nativeReadoutsShowThePictureNumbersAndColours() { // 002-AC3, 002-AC4
         val p = FrameProcessor()
         p.process(frame0, 0f)

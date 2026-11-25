@@ -8,17 +8,20 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Paint
+import android.hardware.display.DisplayManager
 import android.hardware.usb.UsbManager
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
 import android.util.TypedValue
+import android.view.Display
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.OrientationEventListener
@@ -46,6 +49,7 @@ import tc001.viewer.core.Settings
 import tc001.viewer.core.VolumeKey
 import tc001.viewer.core.captureName
 import tc001.viewer.core.CENTRE_MAX_SP
+import tc001.viewer.core.NO_READING
 import tc001.viewer.core.PAIR_MAX_SP
 import tc001.viewer.core.nextAccess
 import tc001.viewer.core.pairTextSize
@@ -55,6 +59,8 @@ import tc001.viewer.core.pictureTurns
 import tc001.viewer.core.rawSnapshot
 import tc001.viewer.core.readoutBand
 import tc001.viewer.core.readoutFloor
+import tc001.viewer.core.screenRotation
+import tc001.viewer.core.screenTurns
 import tc001.viewer.core.snapQuarter
 import tc001.viewer.core.turnToDraw
 import tc001.viewer.core.turnedBox
@@ -106,6 +112,33 @@ class MainActivity : Activity() {
     // Set on the UI thread, read once per frame on the source thread: the phone turns the picture is drawn for.
     @Volatile
     private var drawn = 0
+
+    // Set on the UI thread, read once per frame on the source thread: display rotation in quarters, 2 in reversed portrait (004-AC1).
+    @Volatile
+    private var rotation = 0
+    private lateinit var displayManager: DisplayManager
+    private val displays = object : DisplayManager.DisplayListener {
+        // A 180° flip changes no configuration field the activity is told about: the display is the only signal.
+        // From DisplayManager, not a view: a relaunched instance's views have no display yet in onStart.
+        override fun onDisplayChanged(displayId: Int) {
+            if (displayId != Display.DEFAULT_DISPLAY) return
+            val r = displayManager.getDisplay(displayId)?.rotation ?: return
+            if (r == rotation) return
+            rotation = r
+            showTurn()
+        }
+
+        override fun onDisplayAdded(displayId: Int) = Unit
+
+        override fun onDisplayRemoved(displayId: Int) = Unit
+    }
+
+    // UI thread: the orientation asked of Android, read back in onStart because the system keeps it across a relaunch and process death.
+    private var requested = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    private var sensed = false // UI thread: this instance has had an accelerometer reading
+
+    /** Quarters the system has not turned yet for the drawn turn: what the picture, readouts and message still turn by. */
+    private val onScreen get() = screenTurns(drawn, rotation)
 
     /** A recording asked for, compared by identity; [held] is the turn drawn from Record until Stop (003-AC6). */
     private class Recording(val held: Int)
@@ -164,6 +197,7 @@ class MainActivity : Activity() {
         prefs = getSharedPreferences("settings", MODE_PRIVATE)
         settings = Settings.from(prefs.all)
         usb = getSystemService(UsbManager::class.java)
+        displayManager = getSystemService(DisplayManager::class.java)
 
         live = findViewById(R.id.live)
         // Upright size only: a sideways start falls back to the full encoder search if the prepared one refuses it.
@@ -175,14 +209,14 @@ class MainActivity : Activity() {
         // Posted: a layout change listener runs inside the layout pass.
         (message.parent as View).addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> message.post(::fitMessage) }
         fps = findViewById(R.id.fps)
-        // Follows the sensor even with auto-rotate off: the layout is locked to portrait, only the content turns.
+        // Follows the sensor even with auto-rotate off (003, 004-AC4): only the app asks for reversed portrait, from this turn.
         orientation = object : OrientationEventListener(this) {
             override fun onOrientationChanged(angle: Int) {
-                val new = snapQuarter(angle, phone)
-                if (new == phone) return
-                phone = new
+                if (angle >= 0) sensed = true
+                phone = snapQuarter(angle, phone)
                 val t = turnToDraw(phone, recording?.held)
-                if (t != drawn) turn(t)
+                // Also on no turn: the first reading after a relaunch corrects an orientation the system kept for the old instance.
+                if (t != drawn || requested != orientationFor(t)) turn(t)
             }
         }
 
@@ -265,13 +299,22 @@ class MainActivity : Activity() {
         }
         // RECEIVER_NOT_EXPORTED is API 33; the system still delivers its USB broadcasts to a non-exported receiver.
         registerReceiver(receiver, filter, if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) RECEIVER_NOT_EXPORTED else 0)
+        requested = requestedOrientation
+        // Lying flat gives no reading: until one comes, draw for the upside-down turn the kept request stands for.
+        if (!sensed && requested == ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT) {
+            phone = 2
+            turn(2)
+        }
         orientation.enable()
+        displayManager.registerDisplayListener(displays, null)
+        displays.onDisplayChanged(Display.DEFAULT_DISPLAY)
         connect()
     }
 
     override fun onStop() {
         started = false
         orientation.disable()
+        displayManager.unregisterDisplayListener(displays)
         unregisterReceiver(receiver)
         use(null, R.string.plug_in)
         super.onStop()
@@ -386,10 +429,14 @@ class MainActivity : Activity() {
         // The rate is per source: a stopped source must not leave its last reading on screen.
         fps.removeCallbacks(fpsTick)
         fps.text = null
-        // Cleared, not left at the last source's numbers until the new one's first frame.
+        // Placeholders, not the last source's numbers, until the new one's first frame; the band stays so nothing jumps (004-AC6).
         readoutRow.removeCallbacks(readoutTick)
-        for (v in values.values) v.text = null
-        readoutRow.visibility = if (new != null) View.VISIBLE else View.INVISIBLE
+        val noReading = getString(R.string.no_reading)
+        for (v in values.values) {
+            v.text = NO_READING
+            v.contentDescription = noReading
+        }
+        fitReadouts()
         if (new != null) readoutRow.post(readoutTick)
         fps.visibility = if (FPS_OVERLAY && new != null) View.VISIBLE else View.GONE
         if (fps.visibility == View.VISIBLE) {
@@ -399,25 +446,40 @@ class MainActivity : Activity() {
         }
     }
 
-    /** Draws the picture and the message for a phone turned clockwise by [turns] quarters. */
+    /** Draws the picture and the message for a phone turned clockwise by [turns] quarters; upside down the screen turns too (004-AC1). */
     private fun turn(turns: Int) {
+        val wanted = orientationFor(turns)
+        if (wanted != requested) {
+            requestedOrientation = wanted
+            requested = wanted
+        }
         drawn = turns
-        message.rotation = -90f * turns
+        showTurn()
+    }
+
+    /** The Android orientation for a picture drawn for [turns]: reversed portrait upside down (004-AC1). */
+    private fun orientationFor(turns: Int) =
+        if (screenRotation(turns) == 2) ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+
+    /** Turns the message and the readouts by what the screen has not turned yet. */
+    private fun showTurn() {
+        message.rotation = -90f * onScreen
         fitMessage()
         layoutReadouts()
     }
 
     /** Lays the readouts out in the box the user sees once the band turns with the phone, turned to read upright (003-AC3). */
     private fun layoutReadouts() {
-        val (width, height) = turnedBox(readoutRow.width, readoutRow.height, drawn)
+        val turns = onScreen
+        val (width, height) = turnedBox(readoutRow.width, readoutRow.height, turns)
         val box = readoutBox.layoutParams
         if (box.width != width || box.height != height) {
             box.width = width
             box.height = height
             readoutBox.requestLayout()
         }
-        readoutBox.rotation = -90f * drawn
-        val stacked = drawn % 2 != 0
+        readoutBox.rotation = -90f * turns
+        val stacked = turns % 2 != 0
         val pair = readoutPair
         if (pair.orientation != if (stacked) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL) {
             pair.orientation = if (stacked) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
@@ -441,7 +503,7 @@ class MainActivity : Activity() {
     /** Turned a quarter, the message wraps to its slot's height, the width it has once turned. */
     private fun fitMessage() {
         val slot = (message.parent as View).height
-        val width = if (drawn % 2 != 0 && slot > 0) slot else Int.MAX_VALUE
+        val width = if (onScreen % 2 != 0 && slot > 0) slot else Int.MAX_VALUE
         if (message.maxWidth != width) message.maxWidth = width
     }
 
@@ -519,11 +581,11 @@ class MainActivity : Activity() {
             return
         }
         val (centreEm, centreLine) = ems(centre)
-        val centreSize = fitTextSize(centreEm, centreLine, innerWidth(centre), centre.height.toFloat(), readoutFloor(drawn, sp(VALUE_FIT_SP)), sp(CENTRE_MAX_SP))
+        val centreSize = fitTextSize(centreEm, centreLine, innerWidth(centre), centre.height.toFloat(), readoutFloor(onScreen, sp(VALUE_FIT_SP)), sp(CENTRE_MAX_SP))
         centre.setTextSize(TypedValue.COMPLEX_UNIT_PX, centreSize)
         val (minEm, line) = ems(min)
         val pair = pairTextSize(
-            fitTextSize(maxOf(minEm, ems(max).first), line, innerWidth(min), min.height.toFloat(), readoutFloor(drawn, sp(VALUE_FIT_SP)), sp(PAIR_MAX_SP)),
+            fitTextSize(maxOf(minEm, ems(max).first), line, innerWidth(min), min.height.toFloat(), readoutFloor(onScreen, sp(VALUE_FIT_SP)), sp(PAIR_MAX_SP)),
             centreSize,
         )
         min.setTextSize(TypedValue.COMPLEX_UNIT_PX, pair)
@@ -539,7 +601,10 @@ class MainActivity : Activity() {
         val texts = synchronized(readouts) { if (filled) Readout.entries.associateWith { it.text(readouts) } else null }
         // "-" is narrower than a digit: a same-length value can still be wider, so any changed text refits.
         if (texts != null && texts.any { (item, t) -> !values.getValue(item).text.contentEquals(t) }) {
-            for ((item, t) in texts) values.getValue(item).text = t
+            for ((item, t) in texts) values.getValue(item).apply {
+                text = t
+                contentDescription = null
+            }
             fitReadouts()
         }
         readoutRow.postDelayed(readoutTick, READOUT_PERIOD_MS)
@@ -552,6 +617,7 @@ class MainActivity : Activity() {
         // The recorder is published after the turn freezes: read first, its frames always carry the frozen turn.
         val rec = recorder
         val turns = drawn
+        val screen = screenTurns(turns, rotation)
         if (!processor.process(frame, s.smoothing)) return
         val p = processor
         synchronized(readouts) {
@@ -559,7 +625,7 @@ class MainActivity : Activity() {
             filled = true
         }
         val view = composer.compose(p.shown, readouts, s.palette, s.smoothing, p.spots, pictureTurns(s.quarterTurns, s.mirror, turns), s.mirror, turns)
-        live.show(view, turns)
+        live.show(view, screen)
         rec?.draw(view)
         if (photoRequested) {
             photoRequested = false
@@ -618,7 +684,7 @@ class MainActivity : Activity() {
         recorder?.finish()
         recorder = null
         showRecording()
-        // After finish(): no frame drawn for the new turn reaches the file.
+        // After finish(): no frame drawn for the new turn reaches the file; the screen catches up here too (004-AC5).
         if (drawn != phone) turn(phone)
     }
 

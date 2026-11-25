@@ -28,6 +28,15 @@ fun thermalLeft(turns: Int) = if (turns.mod(4) == 1) BAND else 0
 /** Left edge of the sideways scale band in the picture for [turns]: beside the thermal image, on the phone's portrait bottom edge (003-AC8). */
 fun bandLeft(turns: Int) = if (turns.mod(4) == 1) 0 else PICTURE_WIDTH
 
+/** Display rotation in quarters to ask for a picture drawn for [turns]: reversed portrait upside down (004-AC1), else portrait (004-AC2). */
+fun screenRotation(turns: Int) = if (turns.mod(4) == 2) 2 else 0
+
+/**
+ * Quarters to turn on-screen content drawn for [phone] once the display is at Display.getRotation() [rotation]: what the
+ * system has not turned yet. The display rotation counts counter-clockwise, the phone's turn clockwise, hence the sum.
+ */
+fun screenTurns(phone: Int, rotation: Int) = (phone + rotation).mod(4)
+
 /** The phone turns to draw for: [held] from Record to Stop (003-AC6), else the [phone]'s. */
 fun turnToDraw(phone: Int, held: Int?) = held ?: phone
 

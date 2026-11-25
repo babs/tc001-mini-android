@@ -53,6 +53,23 @@ class OrientationTest {
     }
 
     @Test
+    fun onlyUpsideDownTheScreenGoesToReversedPortrait() { // 004-AC1, 004-AC2
+        assertEquals("upside down: reversed portrait", 2, screenRotation(2))
+        for (turns in listOf(0, 1, 3)) assertEquals("turns $turns: portrait as in spec 003", 0, screenRotation(turns))
+    }
+
+    @Test
+    fun contentTurnsOnlyByWhatTheScreenHasNotTurned() { // 004-AC1, 004-AC2
+        assertEquals("upside down in reversed portrait: nothing turned twice", 0, screenTurns(2, screenRotation(2)))
+        for (phone in listOf(0, 1, 3)) assertEquals("phone $phone in portrait: as in spec 003", phone, screenTurns(phone, screenRotation(phone)))
+        // A landscape display reads Display.getRotation() 1 with the phone at 270°, 3 at 90°: nothing left to turn.
+        assertEquals(0, screenTurns(3, 1))
+        assertEquals(0, screenTurns(1, 3))
+        // At any display rotation (counter-clockwise) the content still reads upright: the turn applied minus the display's is the phone's.
+        for (phone in 0..3) for (rotation in 0..3) assertEquals("phone $phone, rotation $rotation", phone, (screenTurns(phone, rotation) - rotation).mod(4))
+    }
+
+    @Test
     fun theReadoutBoxIsTheBandAsTheUserSeesIt() { // 003-AC3
         for (turns in listOf(0, 2)) assertEquals("turns $turns", 1080 to 573, turnedBox(1080, 573, turns))
         for (turns in listOf(1, 3)) assertEquals("turns $turns: band height wide, band width tall", 573 to 1080, turnedBox(1080, 573, turns))
@@ -146,7 +163,7 @@ class OrientationTest {
     }
 
     @Test
-    fun theActivityIsLockedToPortraitAndHandlesTurnsItself() { // 003-AC1
+    fun theActivityStartsInPortraitAndHandlesTurnsItself() { // 003-AC1, 004-AC4: reversed portrait is asked from code, never from the auto-rotate setting
         // Unit tests run from the module dir; the fallback covers a run from the project root.
         val manifest = listOf("src/main/AndroidManifest.xml", "app/src/main/AndroidManifest.xml").map(::File).first { it.isFile }
         val ns = "http://schemas.android.com/apk/res/android"

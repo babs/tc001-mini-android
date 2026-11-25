@@ -54,8 +54,7 @@
         <FrameLayout
             android:id="@+id/readouts"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:visibility="invisible">
+            android:layout_height="wrap_content">
 
             <!-- Pinned LTR: Min stays under the cold (left) end of the scale in RTL locales too. -->
             <LinearLayout

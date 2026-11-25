@@ -92,6 +92,9 @@ const val COLD_COLOR = 0xFF00C8FF.toInt()
 const val CENTRE_COLOR = 0xFFFFFFFF.toInt()
 const val HOT_COLOR = 0xFFFF4D6D.toInt()
 
+/** A readout's value with no source or before its first frame (004-AC6): figure dashes, one digit wide each. */
+const val NO_READING = "\u2012\u2012.\u2012"
+
 /** The native readouts, each in its picture colour; layout in main.xml / MainActivity. */
 enum class Readout(val label: String, val color: Int) {
     MIN("Min", COLD_COLOR),

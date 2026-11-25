@@ -11,6 +11,7 @@
     <string name="reconnecting">Waiting for the camera…</string>
     <string name="open_failed">Cannot open the camera</string>
     <string name="probe_rejected">The camera refused the temperature mode</string>
+    <string name="no_reading">No reading</string>
     <string name="fps">%1$.1f fps, rejected: %2$d</string>
     <string name="ironbow">Ironbow</string>
     <string name="white_hot">White hot</string>
