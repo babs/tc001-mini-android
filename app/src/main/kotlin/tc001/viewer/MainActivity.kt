@@ -135,7 +135,6 @@ class MainActivity : Activity() {
 
     // UI thread: the orientation asked of Android, read back in onStart because the system keeps it across a relaunch and process death.
     private var requested = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-    private var sensed = false // UI thread: this instance has had an accelerometer reading
 
     /** Quarters the system has not turned yet for the drawn turn: what the picture, readouts and message still turn by. */
     private val onScreen get() = screenTurns(drawn, rotation)
@@ -212,11 +211,11 @@ class MainActivity : Activity() {
         // Follows the sensor even with auto-rotate off (003, 004-AC4): only the app asks for reversed portrait, from this turn.
         orientation = object : OrientationEventListener(this) {
             override fun onOrientationChanged(angle: Int) {
-                if (angle >= 0) sensed = true
-                phone = snapQuarter(angle, phone)
+                val new = snapQuarter(angle, phone)
+                if (new == phone) return
+                phone = new
                 val t = turnToDraw(phone, recording?.held)
-                // Also on no turn: the first reading after a relaunch corrects an orientation the system kept for the old instance.
-                if (t != drawn || requested != orientationFor(t)) turn(t)
+                if (t != drawn) turn(t)
             }
         }
 
@@ -300,8 +299,8 @@ class MainActivity : Activity() {
         // RECEIVER_NOT_EXPORTED is API 33; the system still delivers its USB broadcasts to a non-exported receiver.
         registerReceiver(receiver, filter, if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) RECEIVER_NOT_EXPORTED else 0)
         requested = requestedOrientation
-        // Lying flat gives no reading: until one comes, draw for the upside-down turn the kept request stands for.
-        if (!sensed && requested == ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT) {
+        // A kept request (relaunch, process death) stands for upside down: draw for it until a reading, none while flat.
+        if (requested == ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT) {
             phone = 2
             turn(2)
         }
