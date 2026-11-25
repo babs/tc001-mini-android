@@ -47,7 +47,7 @@ The app behaves like a camera app. The layout never moves: the picture stays at 
 - [x] **AC8** At 90° and 270° the thermal image on screen is the same size and place as at 0° (full width), and the scale is beside it, on the side of the phone's portrait bottom edge.
 - [x] **AC9** At 90° and 270° the scale reads upright for the user: coldest colour at the bottom, hottest at the top, low / middle / high labels with °C matching the colour range (002-AC1 / 002-AC2 rules, locked range included).
 - [x] **AC10** Captures are the picture as drawn for the orientation held at capture: 768 x 832 with the horizontal scale below at 0° and 180°, 832 x 768 with the vertical scale beside the image at 90° and 270°, for photo PNGs and H.264 MP4s (~25 fps, duration within 1 s); a recording keeps its size until Stop even if the phone turns. This supersedes the fixed 768 x 832 of 002-AC1 / 002-AC6 for sideways captures; the `tc001` JSON fields do not change (`orientation` and the PNG size tell the layout).
-- [x] **AC11** At 0° and 180° the picture, the screen and the captures are exactly as before this phase.
+- [x] **AC11** At 0° and 180° the picture, the screen and the captures are exactly as before this phase (180° superseded by 004-AC1: upside down the app turns like portrait).
 
 ## Phases
 
